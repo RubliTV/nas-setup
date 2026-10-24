@@ -40,6 +40,10 @@ try {
     require_once('openmediavault/functions.inc');
     $context = ['username' => \OMV\Environment::get('OMV_WEBGUI_ADMINUSER_NAME', 'admin'),
                 'role' => OMV_ROLE_ADMINISTRATOR];
+    if (in_array($request['operation'], ['share_set', 'smb_share_set'], true) &&
+        ($request['params']['uuid'] ?? null) === 'new') {
+        $request['params']['uuid'] = \OMV\Environment::get('OMV_CONFIGOBJECT_NEW_UUID');
+    }
     [$service, $method] = $allowed[$request['operation']];
     $result = \OMV\Rpc\Rpc::call($service, $method, $request['params'], $context, \OMV\Rpc\Rpc::MODE_REMOTE);
     // OMV may return complete user objects; passwords never cross back to job state.

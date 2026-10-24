@@ -12,7 +12,7 @@ marker=Path('/root/NAS_SETUP_DISPOSABLE_VM')
 if not marker.is_file() or marker.is_symlink() or marker.stat().st_uid!=0:
     raise SystemExit('Root-owned disposable VM marker required.')
 MODE=sys.argv[1] if len(sys.argv)==2 else ''
-if MODE not in ('single','raid1','raid5','raid6','verify','lost-format'):raise SystemExit('mode rejected')
+if MODE not in ('single','raid1','raid5','raid6','verify','lost-format','degraded','conflicts'):raise SystemExit('mode rejected')
 STATE=Path('/root/nas-v02-exercise')
 STATE.mkdir(mode=0o700,exist_ok=True)
 class DisposableAdapter(OmvProvisioner):
@@ -46,11 +46,60 @@ def smb(user,share,command,success=True):
 
 if MODE=='verify':
     resources=json.loads((STATE/'resources.json').read_text())
-    print('REBOOT STATUS',json.dumps(adapter.status(resources)),flush=True)
+    status=adapter.status(resources)
+    assert status['state']=='healthy',status
+    print('REBOOT STATUS',json.dumps(status),flush=True)
     passwords={}
     smb('nasana','Files','get test.txt '+str(STATE/'download-after-reboot'))
     assert (STATE/'download-after-reboot').read_text()=='disposable NAS ACL verification\n'
     smb('naseve','Files','ls',False)
+    raise SystemExit(0)
+
+if MODE=='degraded':
+    resources=json.loads((STATE/'resources.json').read_text())
+    if not resources.get('md') or adapter.status(resources)['state']!='healthy':
+        raise SystemExit('Healthy owned disposable RAID required before failure injection.')
+    target=resources['targets'][-1]
+    if target['serial'] not in {'NASV02DATA1','NASV02DATA2','NASV02DATA3','NASV02DATA4'}:
+        raise SystemExit('Refusing non-disposable RAID member.')
+    md=resources['md']['devicefile'];member=target['id']
+    subprocess.run(['mdadm','--manage',md,'--fail',member],check=True)
+    subprocess.run(['mdadm','--manage',md,'--remove',member],check=True)
+    status=adapter.status(resources)
+    assert status['state']=='degraded',status
+    print('VERIFIED DEGRADED MEMBER DETECTION',json.dumps(status),flush=True)
+    raise SystemExit(0)
+
+if MODE=='conflicts':
+    from nas_setup.models import SetupError
+    from nas_setup.omv import SMB_SETTINGS_KEYS
+    resources=json.loads((STATE/'resources.json').read_text())
+    assert adapter.status(resources)['state']=='healthy'
+    inventory={**system.inventory(),**adapter.inventory(),'provisioning_enabled':True}
+    spare=next(d for d in inventory['disks'] if d['eligible'] and d['serial'].startswith('NASV02DATA'))
+    calls=[]
+    def forbidden_mutation(op,params):
+        calls.append(op);raise AssertionError('conflict preflight dispatched '+op)
+    adapter._mutate=forbidden_mutation
+    def check_conflict(users,shares,code):
+        selection=SetupSelection(storage={'mode':'single','disks':[spare['id']]},users=users,shares=shares,apps=[],timezone='UTC')
+        plan=plan_setup(selection,inventory)
+        try:adapter.prepare(selection.model_dump(),plan)
+        except SetupError as exc:assert exc.code==code,(code,exc.code)
+        else:raise AssertionError('expected preflight conflict '+code)
+        assert not calls,calls
+        print('VERIFIED PREFLIGHT CONFLICT ZERO MUTATIONS',code,flush=True)
+    check_conflict([{'name':'nasana'}],[],'existing_installation')
+    check_conflict([{'name':'nasnew'}],[{'name':'Files','folder':'files','permissions':{'nasnew':'rw'}}],'existing_installation')
+    original=adapter._rpc('smb_settings_get')
+    original={k:original[k] for k in SMB_SETTINGS_KEYS}
+    pending=dict(original,serverstring=original['serverstring']+' pending-test')
+    adapter._rpc('smb_settings_set',pending)
+    try:check_conflict([],[],'omv_configuration_changed')
+    finally:
+        adapter._rpc('smb_settings_set',original)
+        adapter._rpc('config_apply',{'modules':['samba'],'force':False})
+    print('CONFLICT MODE PASS',flush=True)
     raise SystemExit(0)
 
 count={'single':1,'raid1':2,'raid5':3,'raid6':4,'lost-format':1}[MODE]

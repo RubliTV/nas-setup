@@ -381,3 +381,21 @@ def test_preflight_rejects_global_share_conflict_before_erasure(tmp_path):
     adapter._db=lambda model:[{'name':'FILES','mntentref':'other-mount','reldirpath':'unrelated/'}]
     with pytest.raises(SetupError,match='existing_installation'):
         adapter._preflight_conflicts({'users':[],'shares':[{'name':'Files','folder':'files'}],'storage':{'mode':'raid1'}})
+
+
+def test_completed_async_task_settles_udev_before_identity_read(tmp_path):
+    calls=[]
+    def run(args,**kwargs):calls.append(args);return SimpleNamespace(returncode=0,stdout='')
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path,run=run))
+    adapter._rpc=lambda *a:{'running':False,'pos':0,'pendingOutput':False}
+    adapter._wait_bg('/tmp/bgstatus-owned')
+    assert calls==[['udevadm','settle','--timeout=30']]
+
+
+def test_creation_uuid_is_translated_by_bridge_from_installed_omv_configuration():
+    # OMV's configurable new-object sentinel is not the nil UUID; submitting a
+    # nil UUID attempts to update a nonexistent object instead of creating it.
+    assert omv.NEW_UUID=='new'
+    bridge=Path(omv.__file__).with_name('omv_bridge.php').read_text()
+    assert "\\OMV\\Environment::get('OMV_CONFIGOBJECT_NEW_UUID')" in bridge
+    assert "['share_set', 'smb_share_set']" in bridge

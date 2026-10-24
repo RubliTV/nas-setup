@@ -16,7 +16,7 @@ from .models import SetupError
 ADAPTER_VALIDATED = False
 ADAPTER_VERSION = 'omv8-v02-e0c7b63'
 BRIDGE = Path(__file__).with_name('omv_bridge.php')
-NEW_UUID = '00000000-0000-0000-0000-000000000000'
+NEW_UUID = 'new'
 SMB_SETTINGS_KEYS = ('enable','workgroup','serverstring','loglevel','usesendfile','aio','timeserver','winssupport','winsserver','homesenable','homesbrowseable','extraoptions')
 
 
@@ -582,7 +582,10 @@ class OmvProvisioner:
             if not isinstance(result,dict) or not isinstance(result.get('running'),bool):raise SetupError('omv_rpc_failed')
             pos=result['pos']
             # Deliberately discard output; it may contain credentials or private paths.
-            if not result['running'] and not result.get('pendingOutput'):return
+            if not result['running'] and not result.get('pendingOutput'):
+                # OMV8.5.12 predates the upstream settle added after wipe/mkfs.
+                self.system.run(['udevadm','settle','--timeout=30'],timeout=35)
+                return
             time.sleep(1)
         raise SetupError('command_timeout')
 
