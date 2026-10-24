@@ -48,5 +48,5 @@ Modify web.py, auth.py, rpc.py, engine.py, system.py, cli.py/worker.py. Keep v1 
 
 ### Task 5: disposable integration and release
 - [ ] Try disposable OMV8 VM; validate actual RPC operations on throwaway virtual data disks only, SMB rw/ro/none, all RAID modes and reboot/uncertain operation recovery. Record unavailable infrastructure explicitly; preserve real-provisioning gate if unvalidated.
-- [ ] Fresh whole-branch security/correctness review; fix important findings with regressions.
+- [x] Fresh whole-branch security/correctness review; fix important findings with regressions.
 - [ ] Versioned 0.2.0 packaging and README, no update to old release assets; deliver browser demo, source and accurate validation limits. Publish v0.2 release only when design's integration gate is met.
