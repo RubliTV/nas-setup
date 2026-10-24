@@ -100,6 +100,7 @@ def test_lost_format_response_never_dispatches_format_again(tmp_path):
             calls.append(operation)
             raise RuntimeError('power loss after OMV received format')
     adapter=Adapter(SimpleNamespace(state=tmp_path));journal=OperationJournal(tmp_path/'journal')
+    adapter._filesystem_uuids=lambda target:[]
     with pytest.raises(RuntimeError):adapter._format('/dev/disk/by-id/ata-data',journal,lambda:None)
     with pytest.raises(SetupError,match='recovery_required'):
         adapter._format('/dev/disk/by-id/ata-data',journal,lambda:None)
@@ -114,6 +115,7 @@ def test_completed_format_is_verified_without_another_dispatch(tmp_path):
         def _wait_bg(self,handle):assert handle=='/tmp/bgstatusABC'
         def _filesystem_for(self,target):return {'uuid':'filesystem-uuid','devicefile':'/dev/sdb1','type':'ext4'}
     adapter=Adapter(SimpleNamespace(state=tmp_path));journal=OperationJournal(tmp_path/'journal')
+    adapter._filesystem_uuids=lambda target:[]
     result=adapter._format('/dev/disk/by-id/ata-data',journal,lambda:None)
     assert result['uuid']=='filesystem-uuid'
     assert adapter._format('/dev/disk/by-id/ata-data',journal,lambda:None)==result
@@ -297,3 +299,50 @@ def test_partition_layout_change_invalidates_review_even_without_filesystem_sign
     after=omv.classify_disks(tree,ids,{})
     adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path));adapter._discover=lambda:(tree,after)
     with pytest.raises(SetupError,match='storage_changed'):adapter._check_target(before)
+
+
+def test_raid_pending_sync_is_not_misreported_as_healthy_or_degraded():
+    assert omv.raid_health('resync','0','none',1)=={'state':'syncing','progress':0,'tolerance':1}
+
+
+def test_all_read_only_share_accepts_calculated_acl_mask(tmp_path):
+    path=tmp_path/'readonly';path.mkdir()
+    entries={'user::rwx','user:ana:r-x','user:eve:---','group::---','mask::r-x','other::---'}
+    entries|={'default:'+line for line in set(entries)}
+    system=SimpleNamespace(state=tmp_path,run=lambda *a,**kw:SimpleNamespace(stdout='\n'.join(entries)))
+    omv.OmvProvisioner(system)._verify_acl(str(path),{'ana':'ro','eve':'none'})
+
+
+def test_format_cannot_adopt_preexisting_filesystem_uuid(tmp_path):
+    from nas_setup.journal import OperationJournal
+    class Adapter(omv.OmvProvisioner):
+        def _filesystem_uuids(self,target):return ['old-uuid']
+        def _mutate(self,*a):return '/tmp/bgstatusABC'
+        def _wait_bg(self,*a):pass
+        def _filesystem_for(self,target):return {'uuid':'old-uuid','devicefile':'/dev/sdb1','type':'ext4'}
+    with pytest.raises(SetupError,match='recovery_required'):
+        Adapter(SimpleNamespace(state=tmp_path))._format('/dev/sdb',OperationJournal(tmp_path/'journal'),lambda:None)
+
+
+def test_recovery_review_verifies_owned_filesystem_and_never_formats(tmp_path):
+    from nas_setup.journal import OperationJournal
+    journal=OperationJournal(tmp_path/'journal')
+    journal.perform('filesystem.dispatch',lambda:{'handle':'/tmp/bgstatus'})
+    journal.perform('filesystem.result',lambda:{'uuid':'owned','devicefile':'/dev/sdb1','type':'ext4'})
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
+    adapter._filesystem_for=lambda target:{'uuid':'owned','devicefile':'/dev/sdb1','type':'ext4'}
+    adapter._rpc=lambda *a:pytest.fail('read-only review must not call mutation RPC')
+    adapter._check_target_identity=lambda *a,**kw:None
+    plan={'selection':{'storage':{'mode':'single'}},'targets':[{'id':'/dev/disk/by-id/data'}]}
+    adapter.review_recovery(plan,journal)
+    adapter._filesystem_for=lambda target:{'uuid':'replaced','devicefile':'/dev/sdb1','type':'ext4'}
+    with pytest.raises(SetupError,match='recovery_required'):adapter.review_recovery(plan,journal)
+
+
+def test_recovery_review_rejects_unknown_dispatch(tmp_path):
+    from nas_setup.journal import OperationJournal
+    journal=OperationJournal(tmp_path/'journal')
+    with pytest.raises(RuntimeError):journal.perform('filesystem.dispatch',lambda:(_ for _ in ()).throw(RuntimeError()))
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
+    with pytest.raises(SetupError,match='recovery_required'):
+        adapter.review_recovery({'selection':{'storage':{'mode':'single'}},'targets':[{'id':'/dev/disk/by-id/data'}]},journal)

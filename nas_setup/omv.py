@@ -92,6 +92,7 @@ def raid_health(action,degraded,completed,tolerance):
         if int(degraded)>0:return {'state':'degraded','progress':0,'tolerance':tolerance}
         if action=='idle':return {'state':'healthy','progress':100,'tolerance':tolerance}
         if action in ('resync','recover','reshape','check','repair'):
+            if completed=='none':return {'state':'syncing','progress':0,'tolerance':tolerance}
             done,total=(int(n.strip()) for n in completed.split('/'))
             return {'state':'syncing','progress':min(99,max(0,int(done*100/total))),'tolerance':tolerance}
     except (ValueError,ZeroDivisionError):pass
@@ -242,6 +243,54 @@ class OmvProvisioner:
                 (base/'sync_completed').read_text().strip(),resources['raid']['tolerance'])
         except OSError:return {'state':'degraded','progress':0,'tolerance':resources['raid']['tolerance']}
 
+    def _check_target_identity(self,expected,allowed_reasons=(None,)):
+        _,disks=self._discover();matches=[d for d in disks if d['id']==expected['id']]
+        if len(matches)!=1 or matches[0]['reason'] not in allowed_reasons:raise SetupError('storage_changed')
+        current=matches[0]
+        if any(current.get(k)!=expected.get(k) for k in ('serial','size_bytes','transport','logical_sector','physical_sector')):
+            raise SetupError('storage_changed')
+        return current
+
+    def review_recovery(self,plan,journal):
+        """Read-only ownership check for a fresh, session-bound resume consent."""
+        checkpoint=journal.directory/'omv-config-checkpoint.json'
+        if checkpoint.exists():
+            if checkpoint.is_symlink() or json.loads(checkpoint.read_text()).get('digest')!=self._digest():
+                raise SetupError('omv_configuration_changed')
+        selected=plan['selection'];storage=selected['storage'];targets=plan.get('targets',[])
+        keys=['array.create','filesystem.dispatch','filesystem.result','mount.create','mount.apply','sharing.apply','smb.enable']
+        keys+=['user.'+u['name'] for u in selected.get('users',[])]
+        for target in targets:
+            if target.get('serial'):keys+=['wipe.'+target['serial']+'.'+suffix for suffix in ('dispatch','result')]
+        for share in selected.get('shares',[]):
+            relative='nas-'+(share['folder'] if share['folder']!='custom' else hashlib.sha256(share['name'].encode()).hexdigest()[:16])
+            keys+=['share.'+relative+'.'+suffix for suffix in ('create','privileges','acl.dispatch','acl.result','smb')]
+        records={key:journal.get(key) for key in keys}
+        if any(r and (r['status']!='completed' or r.get('result') is None) for r in records.values()):
+            raise SetupError('recovery_required')
+        if storage['mode']=='existing':self._mounted(storage['volume']);return
+        md=records.get('array.create');fs=records.get('filesystem.result');mount=records.get('mount.create')
+        if md:self._verify_array(md['result'],targets,allow_mounted=bool(mount))
+        if fs:
+            target=md['result']['devicefile'] if md else targets[0]['id']
+            if not md:self._check_target_identity(targets[0],allowed_reasons=(None,'mounted') if mount else (None,))
+            actual=self._filesystem_for(target)
+            if not actual or any(actual.get(k)!=fs['result'].get(k) for k in ('uuid','devicefile','type')):
+                raise SetupError('recovery_required')
+            if mount:
+                actual_mount=self._mounted(fs['result']['uuid'])
+                if actual_mount['mount_uuid']!=mount['result']['uuid']:raise SetupError('recovery_required')
+            return
+        # Known async handle without a committed resulting filesystem is safe
+        # from repetition, but cannot yet prove ownership for a new consent.
+        if records.get('filesystem.dispatch'):raise SetupError('recovery_required')
+        if md:return
+        for target in targets:
+            key='wipe.'+target['serial']
+            wiped=records.get(key+'.result')
+            if records.get(key+'.dispatch') and not wiped:raise SetupError('recovery_required')
+            self._check_target(target,blank=bool(wiped))
+
     def _start_context(self,journal):
         self._context_path=journal.directory/'omv-config-checkpoint.json'
         if self._context_path.is_symlink():raise SetupError('unsafe_storage')
@@ -288,7 +337,8 @@ class OmvProvisioner:
         if target.resolve()!=target or not target.is_dir():raise SetupError('unsafe_storage')
         output=self.system.run(['getfacl','--omit-header','--absolute-names','--',str(target)]).stdout
         actual={line.strip() for line in output.splitlines() if line.strip() and not line.startswith('#')}
-        expected={'user::rwx','group::---','other::---','mask::rwx'}
+        mask='rwx' if 'rw' in permissions.values() else 'r-x'
+        expected={'user::rwx','group::---','other::---','mask::'+mask}
         for name,level in permissions.items():expected.add('user:'+name+':'+{'rw':'rwx','ro':'r-x','none':'---'}[level])
         expected|={'default:'+line for line in set(expected)}
         if actual!=expected:raise SetupError('share_permissions_changed')
@@ -518,14 +568,15 @@ class OmvProvisioner:
     def _format(self,target,journal,guard):
         def dispatch():
             guard()
-            return {'handle':self._mutate('filesystem_create',{'devicefile':target,'type':'ext4'})}
+            previous=self._filesystem_uuids(target)
+            return {'handle':self._mutate('filesystem_create',{'devicefile':target,'type':'ext4'}),'previous_uuids':previous}
         # A lost dispatch response is intentionally not reconciled from an arbitrary
         # discovered filesystem: there is no returned identity proving ownership.
         task=journal.perform('filesystem.dispatch',dispatch,destructive=True)
         def finish():
             self._wait_bg(task['handle'])
             result=self._filesystem_for(target)
-            if not result or result['type']!='ext4':raise SetupError('recovery_required')
+            if not result or result['type']!='ext4' or result['uuid'] in task.get('previous_uuids',[]):raise SetupError('recovery_required')
             return result
         def reconcile(record):
             saved=record.get('result')
@@ -533,6 +584,15 @@ class OmvProvisioner:
             current=self._filesystem_for(target)
             return saved if current and all(current.get(k)==saved.get(k) for k in ('uuid','devicefile','type')) else None
         return journal.perform('filesystem.result',finish,reconcile)
+
+    def _filesystem_uuids(self,target):
+        tree,_=self._discover();target=str(Path(target).resolve());found=set()
+        def collect(node,inside=False):
+            inside=inside or node['name']==target
+            if inside and node.get('uuid'):found.add(node['uuid'])
+            for child in node.get('children',[]):collect(child,inside)
+        for node in tree['blockdevices']:collect(node)
+        return sorted(found)
 
     def _filesystem_for(self,target):
         # OMV formats physical disks on partition1, stacked devices directly.
