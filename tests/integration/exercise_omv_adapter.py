@@ -12,7 +12,7 @@ marker=Path('/root/NAS_SETUP_DISPOSABLE_VM')
 if not marker.is_file() or marker.is_symlink() or marker.stat().st_uid!=0:
     raise SystemExit('Root-owned disposable VM marker required.')
 MODE=sys.argv[1] if len(sys.argv)==2 else ''
-if MODE not in ('single','raid1','raid5','raid6','verify','lost-format','degraded','conflicts'):raise SystemExit('mode rejected')
+if MODE not in ('single','raid1','raid5','raid6','verify','lost-format','degraded','conflicts','existing'):raise SystemExit('mode rejected')
 STATE=Path('/root/nas-v02-exercise')
 STATE.mkdir(mode=0o700,exist_ok=True)
 class DisposableAdapter(OmvProvisioner):
@@ -53,6 +53,19 @@ if MODE=='verify':
     smb('nasana','Files','get test.txt '+str(STATE/'download-after-reboot'))
     assert (STATE/'download-after-reboot').read_text()=='disposable NAS ACL verification\n'
     smb('naseve','Files','ls',False)
+    raise SystemExit(0)
+
+if MODE=='existing':
+    resources=json.loads((STATE/'resources.json').read_text())
+    selection=SetupSelection(storage={'mode':'existing','volume':resources['volume']},apps=[],timezone='UTC')
+    inventory={**system.inventory(),**adapter.inventory(),'provisioning_enabled':True}
+    plan=plan_setup(selection,inventory)
+    def forbidden_mutation(op,params):raise AssertionError('existing volume dispatched mutation '+op)
+    adapter._mutate=forbidden_mutation
+    adapter.prepare(selection.model_dump(),plan)
+    reused=adapter.provision(selection.model_dump(),plan,OperationJournal(STATE/'existing-journal'),{})
+    assert reused['volume']==resources['volume'] and reused['mount_path']==resources['mount_path']
+    print('VERIFIED EXISTING VOLUME ZERO MUTATION RPCS',flush=True)
     raise SystemExit(0)
 
 if MODE=='degraded':

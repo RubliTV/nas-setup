@@ -399,3 +399,19 @@ def test_creation_uuid_is_translated_by_bridge_from_installed_omv_configuration(
     bridge=Path(omv.__file__).with_name('omv_bridge.php').read_text()
     assert "\\OMV\\Environment::get('OMV_CONFIGOBJECT_NEW_UUID')" in bridge
     assert "['share_set', 'smb_share_set']" in bridge
+
+
+def test_degraded_array_can_have_detached_original_member_still_present(tmp_path):
+    tree,ids=topology(disk('sdc'))
+    disks=omv.classify_disks(tree,ids,{})
+    targets=[dict(d,id=d['devicefile']) for d in disks[1:]]
+    tree['blockdevices'][1]['children']=[{'name':'/dev/md9','type':'raid1','mountpoints':['/srv/data']}]
+    current=omv.classify_disks(tree,ids,{'/dev/sdb':['md9']})
+    for d in current:d['id']=d['devicefile']
+    array={'uuid':'md-owned','devicefile':'/dev/md9','level':'raid1','numdevices':2,'devices':['/dev/sdb']}
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
+    adapter._discover=lambda:(tree,current);adapter._rpc=lambda *a:[array]
+    adapter._verify_array(array,targets,allow_mounted=True,allow_degraded=True)
+    current[2]['reason']='active_holder'
+    with pytest.raises(SetupError,match='storage_changed'):
+        adapter._verify_array(array,targets,allow_mounted=True,allow_degraded=True)

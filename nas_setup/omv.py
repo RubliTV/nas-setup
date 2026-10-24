@@ -463,12 +463,17 @@ class OmvProvisioner:
         for target in targets:
             d=current.get(target['id'])
             if not d and allow_degraded:continue
-            if not d or d['reason'] not in ('active_holder','mounted'):raise SetupError('storage_changed')
+            if not d:raise SetupError('storage_changed')
             for key in ('serial','size_bytes','transport','logical_sector','physical_sector'):
                 if d.get(key)!=target.get(key):raise SetupError('storage_changed')
             if d['transport'] not in ('sata','sas','nvme'):raise SetupError('disk_transport')
             node=next((n for n in tree['blockdevices'] if n['name']==d['devicefile']),None)
             if not node:raise SetupError('storage_changed')
+            detached=str(Path(target['id']).resolve()) not in actual
+            if allow_degraded and detached:
+                if d['reason'] is not None or node.get('children'):raise SetupError('storage_changed')
+                continue
+            if d['reason'] not in ('active_holder','mounted'):raise SetupError('storage_changed')
             inspect(node)
         return expected
 
