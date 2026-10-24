@@ -1,7 +1,7 @@
-"""OMV 8 storage adapter. Mutations remain disabled pending disposable-VM validation.
+"""OMV 8 storage adapter validated against the exact packages below in a disposable VM.
 
 RPC contracts audited at OMV e0c7b63bf55064eaa6a5e476800465d27e9b86a5.
-Source/schema inspection and unit tests are not a provisioning certification.
+Live storage evidence: docs/v02-vm-validation.md. Physical hardware needs separate testing.
 """
 import hashlib
 import json
@@ -13,7 +13,7 @@ import time
 import uuid
 from .models import SetupError
 
-ADAPTER_VALIDATED = False
+ADAPTER_VALIDATED = True
 ADAPTER_VERSION = 'omv8-v02-e0c7b63'
 VALIDATED_PACKAGES = {'openmediavault':'8.5.12-1','openmediavault-md':'8.1.6-1'}
 BRIDGE = Path(__file__).with_name('omv_bridge.php')

@@ -2,7 +2,7 @@
 
 A browser-based installer for an existing **OpenMediaVault 8 / Debian 13 / amd64** NAS. Brazilian Portuguese and English are included; Portuguese is the default. One bootstrap command installs the local setup service. No public website or desktop app is needed.
 
-**v0.2 status:** The complete Portuguese/English wizard and automated tests are available. Live disk provisioning is gated while disposable OMV validation is in progress. Do not use the demo as evidence that real formatting or RAID recovery works. See [the live validation record](docs/v02-vm-validation.md). The published v0.1.0 installer still has the earlier apps-only workflow.
+**v0.2 test prerelease:** Storage provisioning is enabled for the exact versions below after disposable OMV validation of single disks, RAID 1/5/6, permissions, reboot persistence and interrupted-format recovery. See [the live validation record](docs/v02-vm-validation.md). Physical J1800 performance and the complete optional-app combination still need separate testing. The demo remains a simulation.
 
 The storage adapter accepts **OMV 8.5.12-1** and, for RAID, **openmediavault-md 8.1.6-1**, on Debian 13 amd64. Other package versions fail the compatibility check before provisioning; a matching schema alone is insufficient.
 
@@ -59,16 +59,16 @@ If the NAS has multiple LAN addresses, specify the intended one:
 sudo bash nas-setup-0.2.0/scripts/bootstrap.sh --address 192.168.1.50
 ```
 
-The bootstrap checks the supported OS before installing dependencies. It prints an HTTPS address, a 15-minute single-use access code, and the certificate fingerprint. Compare the fingerprint before trusting the generated certificate in your browser. Then choose storage, users and folder access, select optional apps, review the plan, and start installation. The production gate prevents starting until the adapter has passed live validation.
+The bootstrap checks the supported OS before installing dependencies. It prints an HTTPS address, a 15-minute single-use access code, and the certificate fingerprint. Compare the fingerprint before trusting the generated certificate in your browser. Then choose storage, users and folder access, select optional apps, review the plan, and start installation. The adapter checks the tested package versions and RPC schemas before provisioning.
 
 ### Download directly on the NAS
 
-**The command below downloads the published v0.1.0 apps-only release, not v0.2.** A v0.2 download command will be published only after its storage validation gate passes.
+The command below downloads the **v0.2.0 storage-and-sharing prerelease** directly from RubliTV GitHub.
 
 The GitHub test release is intended for an OMV test machine with disposable data. Log in to the NAS as root and run:
 
 ```sh
-curl -fsSL https://github.com/RubliTV/nas-setup/releases/download/v0.1.0/install.sh | bash
+curl -fsSL https://github.com/RubliTV/nas-setup/releases/download/v0.2.0/install.sh | bash
 ```
 
 The helper downloads the versioned archive over HTTPS, verifies its embedded SHA-256 checksum, extracts into a temporary directory, then runs the same bootstrap above. Your Mac does not need to be online. To inspect before executing, download `install.sh` first and read it locally. The helper and archive come from the same publisher; checksums detect corruption, not publisher compromise.
@@ -76,10 +76,10 @@ The helper downloads the versioned archive over HTTPS, verifies its embedded SHA
 For multiple LAN addresses, pass the selected NAS address:
 
 ```sh
-curl -fsSL https://github.com/RubliTV/nas-setup/releases/download/v0.1.0/install.sh | bash -s -- --address 192.168.1.50
+curl -fsSL https://github.com/RubliTV/nas-setup/releases/download/v0.2.0/install.sh | bash -s -- --address 192.168.1.50
 ```
 
-Maintainers can build all three release assets with `python3 scripts/build_release.py --repository RubliTV/nas-setup`. Upload the generated archive, checksum and `install.sh` together to a new release `v0.2.0` after validation. Never replace a published version with a different archive.
+Maintainers can build all three release assets with `python3 scripts/build_release.py --repository RubliTV/nas-setup`. Upload the generated archive, checksum and `install.sh` together to a new versioned release after validation. Never replace a published version with a different archive; the v0.1.0 assets remain unchanged.
 
 ### Finish and reopen
 
