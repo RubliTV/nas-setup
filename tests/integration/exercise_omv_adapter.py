@@ -12,7 +12,7 @@ marker=Path('/root/NAS_SETUP_DISPOSABLE_VM')
 if not marker.is_file() or marker.is_symlink() or marker.stat().st_uid!=0:
     raise SystemExit('Root-owned disposable VM marker required.')
 MODE=sys.argv[1] if len(sys.argv)==2 else ''
-if MODE not in ('single','raid1','raid5','raid6','verify','lost-format','degraded','conflicts','existing'):raise SystemExit('mode rejected')
+if MODE not in ('single','raid1','raid5','raid6','verify','lost-format','degraded','finish-degraded','conflicts','existing'):raise SystemExit('mode rejected')
 STATE=Path('/root/nas-v02-exercise')
 STATE.mkdir(mode=0o700,exist_ok=True)
 class DisposableAdapter(OmvProvisioner):
@@ -68,19 +68,34 @@ if MODE=='existing':
     print('VERIFIED EXISTING VOLUME ZERO MUTATION RPCS',flush=True)
     raise SystemExit(0)
 
-if MODE=='degraded':
+if MODE in ('degraded','finish-degraded'):
     resources=json.loads((STATE/'resources.json').read_text())
-    if not resources.get('md') or adapter.status(resources)['state']!='healthy':
+    if not resources.get('md') or (MODE=='degraded' and adapter.status(resources)['state']!='healthy'):
         raise SystemExit('Healthy owned disposable RAID required before failure injection.')
     target=resources['targets'][-1]
     if target['serial'] not in {'NASV02DATA1','NASV02DATA2','NASV02DATA3','NASV02DATA4'}:
         raise SystemExit('Refusing non-disposable RAID member.')
     md=resources['md']['devicefile'];member=target['id']
-    subprocess.run(['mdadm','--manage',md,'--fail',member],check=True)
-    subprocess.run(['mdadm','--manage',md,'--remove',member],check=True)
+    if MODE=='degraded':
+        subprocess.run(['mdadm','--manage',md,'--fail',member],check=True)
+        subprocess.run(['mdadm','--manage',md,'--remove',member],check=True)
     status=adapter.status(resources)
     assert status['state']=='degraded',status
     print('VERIFIED DEGRADED MEMBER DETECTION',json.dumps(status),flush=True)
+    from nas_setup.engine import Engine
+    from nas_setup.models import SetupError
+    engine=Engine(STATE/'degraded-engine',system)
+    engine.wizard.provisioner=adapter
+    job=engine.store.create({},['raid_sync'],setup=True,resources=resources)
+    engine.store.step(job['id'],'raid_sync','succeeded')
+    engine.store.update(job['id'],status='succeeded')
+    def forbidden_finish():raise AssertionError('degraded array reached system.finish')
+    system.finish=forbidden_finish
+    try:engine.call('finish')
+    except SetupError as exc:assert exc.code=='job_active',exc.code
+    else:raise AssertionError('degraded array allowed Finish')
+    assert engine.store.get(job['id'])['error']=='raid_degraded'
+    print('VERIFIED ACTUAL DEGRADED RAID BLOCKS FINISH',flush=True)
     raise SystemExit(0)
 
 if MODE=='conflicts':
