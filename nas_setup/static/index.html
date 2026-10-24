@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NAS Setup</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="/"><span class="brand-symbol">▤</span> NAS<span>setup</span></a>
+ <div class="sidebar-caption" data-i18n="sidebarCaption"></div>
+ <nav aria-label="Setup steps"><ol id="navigation">
+  <li data-step="apps"><span>01</span><div data-i18n="navApps"></div></li>
+  <li data-step="storage"><span>02</span><div data-i18n="navStorage"></div></li>
+  <li data-step="review"><span>03</span><div data-i18n="navReview"></div></li>
+  <li data-step="progress"><span>04</span><div data-i18n="navInstall"></div></li>
+ </ol></nav>
+ <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.1</span></div>
+</aside>
+<div class="workspace">
+ <header><div class="breadcrumb">NAS Setup <span>/</span> <span data-i18n="setup"></span></div><div class="languages" aria-label="Language"><button id="lang-pt" type="button">Português</button><button id="lang-en" type="button">English</button></div></header>
+ <main>
+  <div id="demo-banner" class="demo-banner" hidden><span>◈</span><span data-i18n="demoBanner"></span></div>
+  <div id="error" class="error" role="alert" hidden></div>
+  <section id="screen-login" class="screen">
+   <div class="eyebrow" data-i18n="welcomeEyebrow"></div><h1 data-i18n="loginTitle"></h1><p class="lead" data-i18n="loginDescription"></p>
+   <form id="login-form" class="panel login-panel"><div class="panel-icon">⌁</div><h2 data-i18n="pairTitle"></h2><label for="access-code" data-i18n="codeLabel"></label><input id="access-code" type="password" autocomplete="one-time-code" required maxlength="256"><p class="hint" data-i18n="codeHint"></p><button class="primary" type="submit" data-i18n="connect"></button><button class="secondary" id="demo-login" type="button" data-i18n="demoLogin" hidden></button></form>
+  </section>
+  <section id="screen-apps" class="screen" hidden>
+   <div class="eyebrow" data-i18n="appsEyebrow"></div><h1 data-i18n="appsTitle"></h1><p class="lead" data-i18n="appsDescription"></p>
+   <div class="machine panel"><div class="device-icon">▤</div><div class="machine-name"><strong id="hostname"></strong><span id="host-os"></span></div><div class="machine-stat"><span data-i18n="processor"></span><strong id="cpu"></strong></div><div class="machine-stat"><span data-i18n="memory"></span><strong id="memory"></strong></div><span id="host-badge" class="badge"></span></div>
+   <div class="section-label"><h2 data-i18n="appsSection"></h2><span data-i18n="optional"></span></div>
+   <div class="app-grid">
+    <label class="app-card" data-app="tailscale"><div class="app-top"><span class="app-icon tailscale">⠿</span><input type="checkbox" value="tailscale" aria-label="Tailscale" checked></div><h3>Tailscale</h3><span class="tag" data-i18n="remoteTag"></span><p data-i18n="tailscaleDescription"></p><div class="app-foot"><span class="small-dot"></span><span data-i18n="lightweight"></span></div></label>
+    <label class="app-card" data-app="immich"><div class="app-top"><span class="app-icon immich">✳</span><input type="checkbox" value="immich" aria-label="Immich"></div><h3>Immich</h3><span class="tag" data-i18n="photosTag"></span><p data-i18n="immichDescription"></p><div class="app-foot"><span class="small-dot amber"></span><span data-i18n="immichMemory"></span></div></label>
+    <label class="app-card" data-app="jellyfin"><div class="app-top"><span class="app-icon jellyfin">▷</span><input type="checkbox" value="jellyfin" aria-label="Jellyfin"></div><h3>Jellyfin</h3><span class="tag" data-i18n="mediaTag"></span><p data-i18n="jellyfinDescription"></p><div class="app-foot"><span class="small-dot"></span><span data-i18n="directPlayback"></span></div></label>
+   </div>
+   <div class="note"><span>ⓘ</span><p data-i18n="dockerIncluded"></p></div>
+   <div class="actions"><span id="selection-count"></span><button id="apps-next" class="primary" data-i18n="continue"></button></div>
+  </section>
+  <section id="screen-storage" class="screen" hidden>
+   <div class="eyebrow" data-i18n="storageEyebrow"></div><h1 data-i18n="storageTitle"></h1><p class="lead" data-i18n="storageDescription"></p>
+   <div class="panel storage-panel"><h2 data-i18n="existingVolumes"></h2><label for="volume" data-i18n="filesMedia"></label><select id="volume"></select><p class="hint" data-i18n="storageHint"></p>
+    <div id="database-options" hidden><label for="database-volume" data-i18n="database"></label><select id="database-volume"></select><p class="hint" data-i18n="databaseHint"></p>
+     <label class="switch-row"><input id="machine-learning" type="checkbox"><span><strong data-i18n="machineLearning"></strong><small id="ml-hint"></small></span></label>
+    </div>
+    <label for="timezone" data-i18n="timezone"></label><input id="timezone" value="America/Sao_Paulo" autocomplete="off"><p class="hint" data-i18n="timezoneHint"></p>
+   </div>
+   <div class="note"><span>ⓘ</span><p data-i18n="storageOmv"></p></div>
+   <div class="actions"><button class="secondary back" data-target="apps" data-i18n="back"></button><button id="storage-next" class="primary" data-i18n="reviewButton"></button></div>
+  </section>
+  <section id="screen-review" class="screen" hidden>
+   <div class="eyebrow" data-i18n="reviewEyebrow"></div><h1 data-i18n="reviewTitle"></h1><p class="lead" data-i18n="reviewDescription"></p>
+   <div class="panel"><h2 data-i18n="installationPlan"></h2><div id="plan-list"></div><div id="plan-storage" class="plan-storage"></div></div>
+   <div id="warnings"></div><div class="note"><span>↻</span><p data-i18n="resumeHint"></p></div>
+   <div class="actions"><button class="secondary back" id="review-back" data-target="apps" data-i18n="back"></button><button id="install" class="primary" data-i18n="installButton"></button></div>
+  </section>
+  <section id="screen-progress" class="screen" hidden>
+   <div class="eyebrow" data-i18n="progressEyebrow"></div><h1 id="progress-title"></h1><p class="lead" id="progress-description"></p>
+   <div class="panel progress-panel"><div class="progress-top"><strong id="progress-caption"></strong><span id="progress-percent"></span></div><progress id="progress-bar" max="100" value="0"></progress><ol id="job-steps" class="job-steps"></ol></div>
+   <div id="tailscale-pair" class="panel" hidden><h2 data-i18n="tailscalePair"></h2><p data-i18n="tailscalePairHint"></p><a id="tailscale-link" class="primary" target="_blank" rel="noopener noreferrer" data-i18n="tailscaleLogin" hidden></a><button id="check-tailscale" class="secondary" data-i18n="checkAgain"></button></div>
+   <div id="results" class="result-grid"></div>
+   <div id="job-error" class="error" hidden></div>
+   <div class="actions"><span class="muted" data-i18n="closeBrowser"></span><div class="action-buttons"><button id="pause" class="secondary" data-i18n="pause"></button><button id="resume" class="primary" data-i18n="resume" hidden></button><button id="finish" class="primary" data-i18n="finish" hidden></button></div></div>
+  </section>
+  <section id="screen-finished" class="screen" hidden><div class="eyebrow" data-i18n="finishedEyebrow"></div><h1 data-i18n="finishedTitle"></h1><p class="lead" data-i18n="finishedDescription"></p><div class="panel"><code>sudo nas-setup reopen</code></div></section>
+  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.1.0</span></footer>
+ </main>
+</div>
+</body></html>

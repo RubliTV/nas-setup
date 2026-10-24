@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
-from .auth import Auth
+from .auth import Auth, issue_code
 from .models import SetupError, Selection
 
 class Login(BaseModel):
@@ -52,6 +52,16 @@ def create_app(backend,state_dir,origin,demo=False):
         response=JSONResponse({'csrf':csrf,'demo':demo})
         response.set_cookie('nas_session',token,secure=not demo,httponly=True,samesite='strict',max_age=3600)
         return response
+
+    if demo:
+        @app.post('/api/demo-login')
+        def demo_login():
+            # Only registered for an explicitly simulated backend on loopback HTTP.
+            code=issue_code(state_dir)
+            token,csrf=auth.login(code,'demo')
+            response=JSONResponse({'csrf':csrf,'demo':True})
+            response.set_cookie('nas_session',token,httponly=True,samesite='strict',max_age=3600)
+            return response
 
     @app.get('/api/session')
     def session(request:Request):

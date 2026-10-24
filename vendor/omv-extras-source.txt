@@ -1,0 +1,1 @@
+https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/packages/8e073c5bcb6ac18f3d0d8766591129f7b23bce23/install

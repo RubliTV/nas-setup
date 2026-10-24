@@ -1,0 +1,6 @@
+{
+  "immich": "v3.3.5",
+  "jellyfin": "12.3",
+  "omv_extras_url": "https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/packages/8e073c5bcb6ac18f3d0d8766591129f7b23bce23/openmediavault-omvextrasorg_latest_all8.deb",
+  "omv_extras_sha256": "c34fd32fe27dd2f3419131ab0c2ce1bdfe246e301605a3da9087201651f136d1"
+}
