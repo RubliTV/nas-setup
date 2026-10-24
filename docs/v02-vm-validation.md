@@ -143,6 +143,11 @@ content/denial, POSIX denial and zero-mutation journal replay assertions. See
 before every mode, and the RAID 6 resource record identifies all four synthetic
 data disks as eligible. Reboot and fault results remain separate checks.
 
+A controlled MD consistency check on the healthy RAID 6 array exposed actual
+`syncing` status with progress below 100. The real engine kept the job waiting
+for synchronization and refused Finish; the harness restored `sync_action` to
+`idle` in its cleanup. See `raid6-syncing-pass.log`.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
@@ -163,6 +168,7 @@ data disks as eligible. Reboot and fault results remain separate checks.
 | Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1 and RAID 5, including actual engine Finish rejection |
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
 | Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1/5/6 |
+| Synchronizing array | Real MD operation reports incomplete progress; actual engine blocks Finish | Passed on RAID 6; consistency check with idle cleanup |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
 
 Each storage layout requires a fresh disposable disk set or documented rollback
