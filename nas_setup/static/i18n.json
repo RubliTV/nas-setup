@@ -118,7 +118,7 @@
     "error_job_missing": "Nenhuma instalação ativa foi encontrada.",
     "error_worker_unavailable": "O serviço de instalação não respondeu. Verifique o serviço nas-setup-worker no NAS.",
     "error_command_timeout": "Uma operação demorou demais. Confira o NAS e a conexão antes de retomar.",
-    "error_command_failed": "Uma operação do sistema falhou. Consulte o diário do serviço no NAS antes de retomar.",
+    "error_command_failed": "Uma operação falhou. Consulte diagnostics.log no NAS; veja as instruções de recuperação no README.",
     "error_system_disk_full": "O disco do sistema precisa de pelo menos 8 GB livres.",
     "error_existing_installation": "Há uma instalação ou pasta existente que não podemos substituir automaticamente.",
     "error_port_conflict": "A porta de um aplicativo já está em uso. Confira os serviços existentes no NAS.",
@@ -131,7 +131,8 @@
     "error_request_invalid": "Confira os campos e tente novamente.",
     "error_network_error": "Não foi possível conectar ao NAS. Verifique a rede e recarregue a página.",
     "error_worker_failed": "O serviço de instalação encontrou um erro. Confira o diário no NAS.",
-    "error_operation_invalid": "Operação indisponível. Recarregue a página."
+    "error_operation_invalid": "Operação indisponível. Recarregue a página.",
+    "error_storage_changed": "O volume mudou de caminho. Restaure o ponto de montagem original no OMV antes de continuar."
   },
   "en": {
     "sidebarCaption": "SET UP YOUR NAS",
@@ -252,7 +253,7 @@
     "error_job_missing": "No active installation was found.",
     "error_worker_unavailable": "The installation service did not respond. Check nas-setup-worker on the NAS.",
     "error_command_timeout": "An operation timed out. Check the NAS and connection before resuming.",
-    "error_command_failed": "A system operation failed. Check the service journal on the NAS before resuming.",
+    "error_command_failed": "A system operation failed. Check diagnostics.log on the NAS; see the README recovery instructions.",
     "error_system_disk_full": "The system disk needs at least 8 GB free.",
     "error_existing_installation": "An existing installation or directory cannot be replaced automatically.",
     "error_port_conflict": "An app port is already in use. Check existing services on the NAS.",
@@ -265,6 +266,7 @@
     "error_request_invalid": "Check the fields and try again.",
     "error_network_error": "Could not reach the NAS. Check the network and reload the page.",
     "error_worker_failed": "The installation service encountered an error. Check the journal on the NAS.",
-    "error_operation_invalid": "Operation unavailable. Reload the page."
+    "error_operation_invalid": "Operation unavailable. Reload the page.",
+    "error_storage_changed": "The volume mount path changed. Restore its original mount point in OMV before continuing."
   }
 }

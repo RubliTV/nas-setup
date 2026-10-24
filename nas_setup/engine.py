@@ -67,5 +67,8 @@ class Engine:
             self.store.update(identity,status='succeeded')
         except Exception as exc:
             code=exc.code if isinstance(exc,SetupError) else 'installation_failed'
+            if hasattr(self.system,'diagnostic'):
+                try:self.system.diagnostic(step or 'job',type(exc).__name__+': '+str(exc))
+                except OSError:pass
             if step:self.store.step(identity,step,'failed')
             self.store.update(identity,status='failed',error=code)

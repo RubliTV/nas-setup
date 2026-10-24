@@ -77,7 +77,7 @@ This is a local command. The setup UI does not collect OMV, SSH, or Tailscale ac
 
 App data directories are private, not automatically SMB shares. Jellyfin's media folder begins empty; an administrator can copy media into the generated `jellyfin/media` directory. Its Compose media mount is read-only inside Jellyfin. Application storage/Compose files should not be edited through SMB.
 
-Containers have Docker restart disabled. A systemd service checks the actual mounted filesystem identity before each start, then runs Compose in the foreground. Missing drives therefore cannot cause an automatic Docker restart into newly created OS-disk directories.
+Containers have Docker restart disabled. A systemd service checks the saved filesystem UUID and mount path before each start, then runs Compose in the foreground. Missing drives therefore cannot cause an automatic Docker restart into newly created OS-disk directories.
 
 ## Access away from home
 
@@ -86,6 +86,12 @@ Install Tailscale on your phone/laptop, sign into the same private network, and 
 ## Recovery
 
 The server owns job execution; closing a browser does not stop an installation. Pause takes effect between steps. Resume rechecks system state and storage, preserves generated database secrets, and retries the same job. No automatic reboot or disk formatting is performed.
+
+Command failures are recorded in a bounded, private log with generated database secrets and URLs redacted. Inspect it locally before sharing any diagnostics:
+
+```sh
+sudo cat /var/lib/nas-setup/worker/diagnostics.log
+```
 
 For service diagnostics:
 
@@ -103,6 +109,6 @@ A failed bootstrap can leave dependencies or a partial `/opt/nas-setup` installa
 .venv/bin/python -m pytest -q
 ```
 
-Browser test: install Playwright for Node.js, start a **fresh** demo on port 8765, then run `node tests/browser.cjs`. Set `PLAYWRIGHT_MODULE` to your Playwright module path if it is not available through normal Node resolution. Optionally set `BROWSER_EXECUTABLE` to an existing Chrome/Chromium executable.
+Browser test: install Playwright for Node.js, then run `node tests/browser.cjs`. It starts an isolated demo on port 8767 and cleans up afterward. Set `NAS_DEMO_URL` only when testing an already running fresh demo. Set `PLAYWRIGHT_MODULE` to your Playwright module path if it is not available through normal Node resolution. Optionally set `BROWSER_EXECUTABLE` to an existing Chrome/Chromium executable.
 
 See `docs/testing.md` for the real-OMV validation checklist and current limits.

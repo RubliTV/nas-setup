@@ -2,6 +2,8 @@
 import hashlib
 import hmac
 import json
+import os
+import tempfile
 import secrets
 import threading
 import time
@@ -14,7 +16,13 @@ def issue_code(directory):
     code=secrets.token_urlsafe(24)
     path=directory/'access.json'
     data={'hash':hashlib.sha256(code.encode()).hexdigest(),'expires':time.time()+900}
-    tmp=path.with_suffix('.tmp'); tmp.write_text(json.dumps(data)); tmp.chmod(0o600); tmp.replace(path)
+    fd,name=tempfile.mkstemp(prefix='.access-',dir=directory)
+    try:
+        with os.fdopen(fd,'w') as stream:
+            stream.write(json.dumps(data));stream.flush();os.fsync(stream.fileno())
+        os.replace(name,path)
+    finally:
+        Path(name).unlink(missing_ok=True)
     return code
 
 class Auth:

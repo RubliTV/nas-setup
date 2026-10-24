@@ -43,8 +43,13 @@ def main():
     elif args.command=='reopen':
         if os.geteuid()!=0:parser.error('Use sudo / Execute com sudo')
         import pwd
-        code=issue_code('/var/lib/nas-setup/web');u=pwd.getpwnam('nas-setup')
-        os.chown('/var/lib/nas-setup/web/access.json',u.pw_uid,u.pw_gid)
+        u=pwd.getpwnam('nas-setup')
+        # All writes in the web-owned directory run with that account's privileges.
+        result=subprocess.run([sys.executable,'-c',
+            'from nas_setup.auth import issue_code; print(issue_code("/var/lib/nas-setup/web"))'],
+            user=u.pw_uid,group=u.pw_gid,extra_groups=[],cwd='/',
+            capture_output=True,text=True,check=True)
+        code=result.stdout.strip()
         subprocess.run(['systemctl','enable','--now','nas-setup-worker','nas-setup-web'],check=True)
         config=json.loads(Path('/etc/nas-setup/config.json').read_text())
         print(config['origin']);print('Código / Code (15 min): '+code)

@@ -18,3 +18,9 @@ Use a disposable **OMV 8 / Debian 13 / amd64** VM, with separate system and data
 - Inspect file permissions, service ownership, API origin/CSRF behavior and logs for secrets.
 
 No live OMV, Tailscale enrollment, or J1800 validation has been completed in this development environment. A green local suite is not a claim of hardware or deployment readiness.
+
+## Local results (2026-10-24)
+
+29 Python tests pass on Python 3.12 and 3.15. Chrome/Playwright covers pairing, Portuguese/English switching, selection retention, storage selection, simulated installation, reload recovery and a 390px mobile viewport. One Starlette test-client deprecation warning remains.
+
+Security/recovery regression tests cover pairing temp-file symlinks, a moved filesystem UUID, unmanaged Docker projects, changed bind sources, occupied ports, invalid saved secrets and redacted failure diagnostics. These are mocked or local filesystem/socket tests; they do not establish live OMV compatibility.

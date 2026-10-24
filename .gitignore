@@ -1,7 +1,7 @@
 .venv/
 __pycache__/
 .pytest_cache/
-.demo/
+.demo*/
 dist/
 *.egg-info/
 .superpowers/

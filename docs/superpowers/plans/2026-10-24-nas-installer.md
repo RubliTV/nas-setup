@@ -20,28 +20,28 @@ OMV 8 / Debian 13 / amd64. Portuguese default, English toggle. No disk formattin
 ### Task 1: Contracts, storage, durable jobs
 Files: nas_setup/models.py, storage.py, jobs.py; tests/test_core.py.
 Interfaces: Selection validates apps/volume IDs; make_plan(selection, inventory) -> dict; JobStore persists one active job and supports interrupted recovery.
-- [ ] Write tests for missing mount, unsafe paths, unsupported CPU/OS, concurrency, and recovery; run pytest tests/test_core.py and observe failure.
-- [ ] Implement contracts and durable state; rerun until passing.
-- [ ] Commit tested core.
+- [x] Write tests for missing mount, unsafe paths, unsupported CPU/OS, concurrency, and recovery; run pytest tests/test_core.py and observe failure.
+- [x] Implement contracts and durable state; rerun until passing.
+- [x] Commit tested core.
 
 ### Task 2: Authenticated API and worker transport
 Files: nas_setup/web.py, auth.py, rpc.py; tests/test_api.py.
 Interfaces: create_app(backend, state_dir, origin, demo=False); backend.call(operation, payload) -> dict; sessions carry CSRF tokens.
-- [ ] Write API tests for auth, replay, CSRF/origin validation and plan/start boundaries; observe failure.
-- [ ] Implement auth and restricted local socket protocol; run whole pytest suite.
-- [ ] Commit API.
+- [x] Write API tests for auth, replay, CSRF/origin validation and plan/start boundaries; observe failure.
+- [x] Implement auth and restricted local socket protocol; run whole pytest suite.
+- [x] Commit API.
 
 ### Task 3: Installer, bootstrap, packaging
 Files: nas_setup/engine.py, system.py, worker.py, cli.py, data/; scripts/bootstrap.sh, build_release.py; tests/test_engine.py.
 Interfaces: Engine.call handles inventory/plan/start/job/resume/pause/tailscale/finish; System adapter performs checked subprocess operations; DemoSystem provides explicit simulation.
-- [ ] Write tests for preserved secrets, mount loss, existing app conflicts and injection boundaries; observe failure.
-- [ ] Implement real package/app setup and container lifecycle guards, durable execution, pause/recovery and demo adapters.
-- [ ] Implement Linux bootstrap and checksummed release packaging; test unsupported-host refusal.
-- [ ] Run suite and commit.
+- [x] Write tests for preserved secrets, mount loss, existing app conflicts and injection boundaries; observe failure.
+- [x] Implement real package/app setup and container lifecycle guards, durable execution, pause/recovery and demo adapters.
+- [x] Implement Linux bootstrap and checksummed release packaging; test unsupported-host refusal.
+- [x] Run suite and commit.
 
 ### Task 4: Bilingual UI and delivery verification
 Files: nas_setup/static/{index.html,app.js,style.css,i18n.json}; tests/browser.cjs; README.md; docs/testing.md.
-- [ ] Write browser flows for login, language switching, storage/app selection, plan confirmation and simulated installation.
-- [ ] Implement responsive UI; run browser checks and inspect screenshots.
-- [ ] Build distribution, review changes with a fresh reviewer, fix important findings, run complete suite.
-- [ ] Document exact commands and live-OMV validation limits, commit, and open demo for the user.
+- [x] Write browser flows for login, language switching, storage/app selection, plan confirmation and simulated installation.
+- [x] Implement responsive UI; run browser checks and inspect screenshots.
+- [x] Build distribution, review changes with a fresh reviewer, fix important findings, run complete suite.
+- [x] Document exact commands and live-OMV validation limits, commit, and open demo for the user.

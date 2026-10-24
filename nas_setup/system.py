@@ -5,6 +5,10 @@ import os
 from pathlib import Path
 import secrets
 import socket
+import shutil
+import re
+import tempfile
+import threading
 import subprocess
 import time
 import urllib.request
@@ -18,19 +22,29 @@ MANIFEST=json.loads((DATA/'manifest.json').read_text())
 def write_secret(path):
     path=Path(path)
     if path.is_symlink():raise SetupError('unsafe_storage')
-    try:
-        fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-    except FileExistsError:
-        if path.stat().st_mode & 0o077:raise SetupError('unsafe_storage')
-        return path.read_text().strip()
+    if path.exists():
+        value=path.read_text().strip()
+        if path.stat().st_mode & 0o077 or not re.fullmatch(r'[a-f0-9]{64}',value):
+            raise SetupError('unsafe_storage')
+        return value
     value=secrets.token_hex(32)
-    with os.fdopen(fd,'w') as f:f.write(value)
+    fd,name=tempfile.mkstemp(prefix='.secret-',dir=path.parent)
+    try:
+        with os.fdopen(fd,'w') as stream:
+            stream.write(value);stream.flush();os.fsync(stream.fileno())
+        # Atomic publication without overwriting a credential created concurrently.
+        try:os.link(name,path)
+        except FileExistsError:return write_secret(path)
+        directory=os.open(path.parent,os.O_RDONLY)
+        try:os.fsync(directory)
+        finally:os.close(directory)
+    finally:Path(name).unlink(missing_ok=True)
     return value
 
 def bind(source,target,readonly=False):
     return {'type':'bind','source':str(source),'target':target,'read_only':readonly,'bind':{'create_host_path':False}}
 
-def render_compose(app,selection,data,db,secret):
+def render_compose(app,selection,data,db,secret,owner=None):
     if app=='jellyfin':
         config={'services':{'jellyfin':{'image':'jellyfin/jellyfin:'+MANIFEST['jellyfin'],
             'environment':{'TZ':selection.timezone},'ports':['8096:8096'],
@@ -60,6 +74,7 @@ def render_compose(app,selection,data,db,secret):
         # systemd is the only restart owner; every restart checks filesystem identity.
         service['restart']='no'
         service['labels']={'io.nas-setup.managed':'true'}
+        if owner:service['labels']['io.nas-setup.owner']=owner
     return config
 
 class DemoSystem:
@@ -90,15 +105,20 @@ class System:
     def __init__(self,state_dir='/var/lib/nas-setup/worker'):
         self.state=Path(state_dir);self.state.mkdir(parents=True,exist_ok=True,mode=0o700)
         self.projects=self.state/'projects';self.projects.mkdir(exist_ok=True,mode=0o700)
+        self.log_lock=threading.Lock()
 
     def run(self,args,timeout=60,check=True):
         env={**os.environ,'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','DEBIAN_FRONTEND':'noninteractive','LC_ALL':'C.UTF-8'}
         try:
             result=subprocess.run(args,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                                   text=True,env=env,timeout=timeout)
-        except subprocess.TimeoutExpired:raise SetupError('command_timeout')
-        except OSError:raise SetupError('command_failed')
-        if check and result.returncode:raise SetupError('command_failed')
+        except subprocess.TimeoutExpired:
+            self.diagnostic(Path(args[0]).name,'command timed out');raise SetupError('command_timeout')
+        except OSError as exc:
+            self.diagnostic(Path(args[0]).name,str(exc));raise SetupError('command_failed')
+        if check and result.returncode:
+            self.diagnostic(Path(args[0]).name,result.stdout+'\n'+result.stderr)
+            raise SetupError('command_failed')
         return result
 
     def inventory(self):
@@ -135,21 +155,93 @@ class System:
 
     def project(self,app):return self.projects/app
 
+    def diagnostic(self,identity,message):
+        message=str(message)
+        for path in self.projects.glob('*/db-password'):
+            secret=path.read_text().strip()
+            if secret:message=message.replace(secret,'[redacted]')
+        message=re.sub(r'https?://[^\s]+','[URL redacted]',message)
+        message=re.sub(r'(?i)((?:password|token|secret|authkey)\s*[=:]\s*)[^\s,;]+',r'\1[redacted]',message)
+        line=json.dumps({'time':time.time(),'operation':identity,'detail':message[-8192:]})+'\n'
+        path=self.state/'diagnostics.log'
+        with self.log_lock:
+            if path.exists() and path.stat().st_size>262144:path.replace(self.state/'diagnostics.previous.log')
+            fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_APPEND,0o600)
+            with os.fdopen(fd,'w') as stream:stream.write(line)
+
+    def docker_available(self):return shutil.which('docker') is not None
+
+    def check_project_ownership(self,app):
+        if not self.docker_available():return False
+        ids=self.run(['docker','ps','-aq','--filter','label=com.docker.compose.project=nas-setup-'+app]).stdout.split()
+        if not ids:return False
+        owner_path=self.state/'installation-id'
+        if not owner_path.exists() or not (self.project(app)/'compose.yml').exists():raise SetupError('existing_installation')
+        owner=write_secret(owner_path)
+        containers=json.loads(self.run(['docker','inspect',*ids]).stdout)
+        expected=yaml.safe_load((self.project(app)/'compose.yml').read_text())['services']
+        running=False
+        for container in containers:
+            labels=container.get('Config',{}).get('Labels') or {}
+            service=labels.get('com.docker.compose.service')
+            if (labels.get('io.nas-setup.owner')!=owner or service not in expected
+                or container.get('Config',{}).get('Image')!=expected[service]['image']):
+                raise SetupError('existing_installation')
+            # An owner label alone must not authorize changed storage bindings.
+            actual={(m.get('Source'),m.get('Destination')) for m in container.get('Mounts',[]) if m.get('Type')=='bind'}
+            desired={(v['source'],v['target']) for v in expected[service].get('volumes',[]) if v.get('type')=='bind'}
+            if actual!=desired:raise SetupError('existing_installation')
+            running=running or container.get('State',{}).get('Running',False)
+        return running
+
+    def selected_mounts(self,app,selection):
+        inventory=self.inventory()
+        ids={selection.volume}
+        if app=='immich':ids.add(selection.database_volume)
+        return {identity:str(volume_path(identity,inventory)) for identity in ids}
+
+    def guard_stack(self,app):
+        project=self.project(app)
+        selection=Selection(**json.loads((project/'selection.json').read_text()))
+        expected=json.loads((project/'mounts.json').read_text())
+        if self.selected_mounts(app,selection)!=expected:raise SetupError('storage_changed')
+        # Resolve every persisted bind to catch symlinks introduced after installation.
+        config=project/'compose.yml'
+        if config.exists():
+            for service in yaml.safe_load(config.read_text())['services'].values():
+                for mount in service.get('volumes',[]):
+                    source=Path(mount['source'])
+                    if source==Path('/etc/localtime'):continue
+                    if not source.exists() or source.resolve()!=source:raise SetupError('unsafe_storage')
+                    if not any(source.is_relative_to(Path(root)/'.nas-setup') for root in expected.values()):
+                        raise SetupError('unsafe_storage')
+        return expected
+
+    def check_port(self,port):
+        for family,address in [(socket.AF_INET,'0.0.0.0'),(socket.AF_INET6,'::')]:
+            try:
+                with socket.socket(family,socket.SOCK_STREAM) as probe:
+                    if family==socket.AF_INET6:probe.setsockopt(socket.IPPROTO_IPV6,socket.IPV6_V6ONLY,1)
+                    probe.bind((address,port))
+            except OSError as exc:
+                import errno
+                if exc.errno not in (errno.EAFNOSUPPORT,errno.EADDRNOTAVAIL,errno.EPROTONOSUPPORT):
+                    raise SetupError('port_conflict')
+
     def preflight(self,selection):
         if not self.inventory()['supported']:raise SetupError('unsupported_host')
         if os.statvfs('/').f_bavail*os.statvfs('/').f_frsize<8*2**30:raise SetupError('system_disk_full')
-        # All package manipulation uses apt's own bounded locking; never delete locks.
         for app,port in [('immich',2283),('jellyfin',8096)]:
             if app not in selection.apps:continue
             saved=self.project(app)/'selection.json'
             if saved.exists():
                 previous=Selection(**json.loads(saved.read_text()))
                 if previous.model_dump()!=selection.model_dump():raise SetupError('existing_installation')
-            else:
-                with socket.socket() as probe:
-                    if probe.connect_ex(('127.0.0.1',port))==0:raise SetupError('port_conflict')
-        docker=self.run(['dpkg-query','-W','-f=${Status}','docker.io'],check=False)
-        if docker.returncode==0 and 'install ok installed' in docker.stdout:raise SetupError('docker_conflict')
+                self.guard_stack(app)
+            if not self.check_project_ownership(app):self.check_port(port)
+        if any(app in selection.apps for app in ('immich','jellyfin')):
+            docker=self.run(['dpkg-query','-W','-f=${Status}','docker.io'],check=False)
+            if docker.returncode==0 and 'install ok installed' in docker.stdout:raise SetupError('docker_conflict')
 
     def apt(self,*packages):
         self.run(['apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install',*packages],timeout=1800)
@@ -191,16 +283,20 @@ class System:
     def install_app(self,app,selection):
         self.preflight(selection)
         project=self.project(app);project.mkdir(exist_ok=True,mode=0o700)
+        mounts=self.selected_mounts(app,selection)
+        record=project/'mounts.json'
+        if record.exists() and json.loads(record.read_text())!=mounts:raise SetupError('storage_changed')
+        record.write_text(json.dumps(mounts));record.chmod(0o600)
         data,db=self._storage(app,selection)
         secret=write_secret(project/'db-password') if app=='immich' else ''
-        compose=render_compose(app,selection,data,db,secret)
+        compose=render_compose(app,selection,data,db,secret,write_secret(self.state/'installation-id'))
         cfg=project/'compose.yml';cfg.write_text(yaml.safe_dump(compose,sort_keys=False));cfg.chmod(0o600)
         saved=project/'selection.json';saved.write_text(selection.model_dump_json());saved.chmod(0o600)
         self.run(['docker','compose','-f',str(cfg),'config','--quiet'])
         self.run(['docker','compose','-f',str(cfg),'pull'],timeout=1800)
         # Recheck after slow downloads, immediately before enabling the stack.
-        volume_path(selection.volume,self.inventory())
-        if app=='immich':volume_path(selection.database_volume,self.inventory())
+        self.guard_stack(app)
+        self.check_project_ownership(app)
         mounts={volume_path(selection.volume,self.inventory())}
         if app=='immich':mounts.add(volume_path(selection.database_volume,self.inventory()))
         units=[self.run(['systemd-escape','--path','--suffix=mount',str(m)]).stdout.strip() for m in mounts]
@@ -229,8 +325,8 @@ WantedBy=multi-user.target
     def stack_run(self,app):
         if app not in ('immich','jellyfin'):raise SetupError('operation_invalid')
         project=self.project(app);selection=Selection(**json.loads((project/'selection.json').read_text()))
-        volume_path(selection.volume,self.inventory())
-        if app=='immich':volume_path(selection.database_volume,self.inventory())
+        self.guard_stack(app)
+        self.check_project_ownership(app)
         # Foreground Compose exits if a component dies. systemd reruns this guard before every restart.
         os.execv('/usr/bin/docker',['docker','compose','-f',str(project/'compose.yml'),'up','--no-build','--no-recreate','--abort-on-container-exit'])
 
