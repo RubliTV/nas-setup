@@ -264,7 +264,8 @@
     "toleranceOne": "Tolera falha de 1 disco",
     "toleranceNone": "Sem tolerância a falhas",
     "recoveryHint": "Retome as etapas restantes; operações de disco concluídas não serão repetidas.",
-    "error_recovery_resume_only": "Já existe uma configuração em recuperação. Retome o trabalho salvo; não inicie uma nova instalação."
+    "error_recovery_resume_only": "Já existe uma configuração em recuperação. Retome o trabalho salvo; não inicie uma nova instalação.",
+    "error_omv_version_unsupported": "A versão instalada do OMV ou do plugin MD não é compatível com este instalador. Confira as versões aceitas no README."
   },
   "en": {
     "sidebarCaption": "SET UP YOUR NAS",
@@ -531,6 +532,7 @@
     "toleranceOne": "Tolerates 1 disk failure",
     "toleranceNone": "No disk-failure tolerance",
     "recoveryHint": "Resume remaining setup; completed disk operations will not be repeated.",
-    "error_recovery_resume_only": "An existing setup is being recovered. Resume the saved job instead of starting a new installation."
+    "error_recovery_resume_only": "An existing setup is being recovered. Resume the saved job instead of starting a new installation.",
+    "error_omv_version_unsupported": "The installed OMV or MD plugin version is unsupported by this installer. Check the supported versions in the README."
   }
 }

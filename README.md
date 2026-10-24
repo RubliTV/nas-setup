@@ -4,6 +4,8 @@ A browser-based installer for an existing **OpenMediaVault 8 / Debian 13 / amd64
 
 **v0.2 status:** The complete Portuguese/English wizard and automated tests are available. Live disk provisioning is gated while disposable OMV validation is in progress. Do not use the demo as evidence that real formatting or RAID recovery works. See [the live validation record](docs/v02-vm-validation.md). The published v0.1.0 installer still has the earlier apps-only workflow.
 
+The storage adapter accepts **OMV 8.5.12-1** and, for RAID, **openmediavault-md 8.1.6-1**, on Debian 13 amd64. Other package versions fail the compatibility check before provisioning; a matching schema alone is insufficient.
+
 ## What the wizard configures
 
 1. **Storage:** use an existing OMV EXT4 volume, or create EXT4 on one data disk, a two-disk RAID 1 mirror, RAID 5 (at least three disks), or RAID 6 (at least four disks).
