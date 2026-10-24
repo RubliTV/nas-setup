@@ -1,6 +1,6 @@
 # v0.2 disposable OMV validation
 
-Status: single-disk live case passed; remaining matrix cases pending; **not a provisioning certification**.
+Status: single-disk and RAID 1 live cases passed; remaining matrix cases pending; **not a provisioning certification**.
 
 The production adapter gate must remain disabled until the actual destructive
 paths pass the matrix below. Python mocks, schema inspection, browser simulation,
@@ -99,7 +99,7 @@ was also denied for cross-user paths. Replaying the completed journal invoked
 zero mutation RPCs. The final single-disk health was `healthy`, with zero disk
 failure tolerance as expected. Evidence is in `single-pass.log` and
 `single-resources.json` in the integration evidence directory. Reboot and
-remaining RAID/fault cases are separate pending checks.
+remaining RAID/fault cases are recorded separately below.
 
 Existing-volume reuse then passed with zero mutation RPCs. Conflict tests rejected
 an existing username, an existing share, and unrelated pending OMV configuration
@@ -111,13 +111,22 @@ and denied access for the excluded account. See `single-reboot-pass.log`.
 The guest was restored to the clean snapshot with all four data disks blank
 and unmounted before starting RAID cases.
 
+RAID 1 also passed its creation/permissions/replay matrix at healthy 100% with
+one-disk failure tolerance. An actual reboot preserved healthy status, saved SMB
+file contents and denied access. Failing/removing the second disposable member
+then produced `degraded` status with progress zero. See the `raid1-*` evidence
+files. The actual installer engine then persisted `raid_degraded`, rejected
+Finish with `job_active`, and never called the system completion hook. This
+separate check passed; see `raid1-finish-pass.log`. The VM was restored to blank
+data disks before the next layout.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
 |---|---|---|
 | Platform | Debian 13, amd64, exact OMV/MD package versions | Passed; OMV 8.5.12-1 / MD 8.1.6-1 |
 | RPC schema files | All eight installed schema hashes equal adapter constants | Passed (see `tests/integration/evidence/schema-check.txt`) |
-| RPC runtime | Bridge dispatch and actual operation response shapes | Pending |
+| RPC runtime | Bridge dispatch and actual operation response shapes | Passed for single disk/RAID 1 operations; remaining layouts pending |
 | Guest disk baseline | Distinct OS root ancestry; four unique unmounted SATA disks | Passed (baseline JSON) |
 | Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Pending |
 | Single disk | EXT4 create, UUID, registered OMV mount and database objects | Passed |
@@ -127,8 +136,8 @@ and unmounted before starting RAID cases.
 | RAID 6 | Four exact members, synchronization, healthy status | Pending |
 | SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk and RAID 1; RAID 5/6 pending |
 | Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk and RAID 1; RAID 5/6 pending |
-| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk; RAID cases pending |
-| Degraded array | Missing member detected; protected completion blocked | Pending |
+| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk and RAID 1; RAID 5/6 pending |
+| Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1, including actual engine Finish rejection |
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
 | Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1 |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
