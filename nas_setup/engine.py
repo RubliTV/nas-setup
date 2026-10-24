@@ -7,9 +7,18 @@ class Engine:
     def __init__(self,state_dir,system):
         self.store=JobStore(state_dir);self.system=system;self.lock=threading.Lock()
         self.store.interrupt_running()
+        from .setup_engine import WizardEngine
+        if getattr(system,'demo',False):
+            from .demo_setup import DemoProvisioner
+            provisioner=DemoProvisioner(system)
+        else:
+            from .omv import OmvProvisioner
+            provisioner=OmvProvisioner(system)
+        self.wizard=WizardEngine(self,provisioner)
 
     def call(self,operation,payload=None):
         payload=payload or {}
+        if operation.startswith('setup_'):return self.wizard.call(operation[6:],payload)
         if operation in ('plan','start'):
             selection=Selection(**payload)
             plan=make_plan(selection,self.system.inventory())
@@ -19,8 +28,8 @@ class Engine:
                 self._launch(job)
             return job
         if payload:raise SetupError('operation_invalid')
-        if operation=='inventory':return self.system.inventory()
-        if operation=='job':return self.store.get()
+        if operation=='inventory':return self.wizard.inventory()
+        if operation=='job':return self.wizard.refresh(self.store.get())
         if operation=='tailscale':return self.system.tailscale_status()
         if operation=='pause':
             with self.lock:
@@ -31,11 +40,12 @@ class Engine:
             with self.lock:
                 job=self.store.get()
                 if not job or job['status'] not in ('failed','interrupted','paused','waiting-for-user'):raise SetupError('job_active')
+                if job.get('setup'):raise SetupError('confirmation_required')
                 make_plan(Selection(**job['selection']),self.system.inventory())
                 job=self.store.update(job['id'],status='running',error=None,pause_requested=False)
                 self._launch(job);return job
         if operation=='finish':
-            job=self.store.get()
+            job=self.wizard.refresh(self.store.get())
             if not job or job['status']!='succeeded':raise SetupError('job_active')
             self.system.finish();return {'status':'finished'}
         raise SetupError('operation_invalid')

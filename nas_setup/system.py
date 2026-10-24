@@ -188,8 +188,8 @@ class System:
                 or container.get('Config',{}).get('Image')!=expected[service]['image']):
                 raise SetupError('existing_installation')
             # An owner label alone must not authorize changed storage bindings.
-            actual={(m.get('Source'),m.get('Destination')) for m in container.get('Mounts',[]) if m.get('Type')=='bind'}
-            desired={(v['source'],v['target']) for v in expected[service].get('volumes',[]) if v.get('type')=='bind'}
+            actual={(m.get('Source'),m.get('Destination'),m.get('RW')) for m in container.get('Mounts',[]) if m.get('Type')=='bind'}
+            desired={(v['source'],v['target'],not v.get('read_only',False)) for v in expected[service].get('volumes',[]) if v.get('type')=='bind'}
             if actual!=desired:raise SetupError('existing_installation')
             running=running or container.get('State',{}).get('Running',False)
         return running
@@ -199,6 +199,43 @@ class System:
         ids={selection.volume}
         if app=='immich':ids.add(selection.database_volume)
         return {identity:str(volume_path(identity,inventory)) for identity in ids}
+
+    def media_registration(self,record):
+        mounts=json.loads(self.run(['omv-confdbadm','read','conf.system.filesystem.mountpoint']).stdout)
+        shares=json.loads(self.run(['omv-confdbadm','read','conf.system.sharedfolder']).stdout)
+        matching=[m for m in mounts if m.get('dir')==record['mount_path']]
+        if len(matching)!=1:return False
+        matching_shares=[item for item in shares if item.get('uuid')==record['share_uuid']]
+        if len(matching_shares)!=1:return False
+        share=matching_shares[0]
+        return (share.get('mntentref')==matching[0]['uuid']
+                and str(Path(record['mount_path'])/share['reldirpath'])==record['path'])
+
+    def approve_media(self,resources):
+        root=volume_path(resources['volume'],self.inventory())
+        path=Path(resources['media_path'])
+        matches=[share for share in resources['shares'] if share.get('folder')=='media' and share['path']==str(path)]
+        if len(matches)!=1 or not matches[0].get('uuid'):raise SetupError('unsafe_storage')
+        if not path.is_dir() or path.resolve()!=path or path==root or not path.is_relative_to(root):
+            raise SetupError('unsafe_storage')
+        record={'volume':resources['volume'],'mount_path':str(root),'path':str(path),'share_uuid':matches[0]['uuid']}
+        if not self.media_registration(record):raise SetupError('storage_changed')
+        project=self.project('jellyfin');project.mkdir(exist_ok=True,mode=0o700)
+        target=project/'approved-media.json'
+        if target.exists() and json.loads(target.read_text())!=record:raise SetupError('existing_installation')
+        from .setup_engine import private_json
+        private_json(target,record)
+
+    def media_binding(self):
+        target=self.project('jellyfin')/'approved-media.json'
+        if not target.exists():return None
+        record=json.loads(target.read_text())
+        root=volume_path(record['volume'],self.inventory());path=Path(record['path'])
+        if str(root)!=record['mount_path']:raise SetupError('storage_changed')
+        if not path.is_dir() or path.resolve()!=path or path==root or not path.is_relative_to(root):
+            raise SetupError('unsafe_storage')
+        if not self.media_registration(record):raise SetupError('storage_changed')
+        return path
 
     def guard_stack(self,app):
         project=self.project(app)
@@ -214,7 +251,9 @@ class System:
                     if source==Path('/etc/localtime'):continue
                     if not source.exists() or source.resolve()!=source:raise SetupError('unsafe_storage')
                     if not any(source.is_relative_to(Path(root)/'.nas-setup') for root in expected.values()):
-                        raise SetupError('unsafe_storage')
+                        approved=self.media_binding() if app=='jellyfin' else None
+                        if source!=approved or mount.get('target')!='/media' or mount.get('read_only') is not True:
+                            raise SetupError('unsafe_storage')
         return expected
 
     def check_port(self,port):
@@ -290,6 +329,10 @@ class System:
         data,db=self._storage(app,selection)
         secret=write_secret(project/'db-password') if app=='immich' else ''
         compose=render_compose(app,selection,data,db,secret,write_secret(self.state/'installation-id'))
+        if app=='jellyfin':
+            media=self.media_binding()
+            if media:
+                compose['services']['jellyfin']['volumes']=[v for v in compose['services']['jellyfin']['volumes'] if v['target']!='/media']+[bind(media,'/media',True)]
         cfg=project/'compose.yml';cfg.write_text(yaml.safe_dump(compose,sort_keys=False));cfg.chmod(0o600)
         saved=project/'selection.json';saved.write_text(selection.model_dump_json());saved.chmod(0o600)
         self.run(['docker','compose','-f',str(cfg),'config','--quiet'])

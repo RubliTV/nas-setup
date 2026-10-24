@@ -72,7 +72,7 @@ def test_owned_container_with_changed_mount_is_rejected(tmp_path):
     system=System(tmp_path/'worker');project=system.project('jellyfin');project.mkdir()
     owner=write_secret(system.state/'installation-id')
     (project/'compose.yml').write_text(yaml.safe_dump({'services':{'jellyfin':{'image':'jellyfin/jellyfin:12.3','volumes':[{'type':'bind','source':'/safe','target':'/data'}]}}}))
-    container={'Config':{'Image':'jellyfin/jellyfin:12.3','Labels':{'io.nas-setup.owner':owner,'com.docker.compose.service':'jellyfin'}},'State':{'Running':True},'Mounts':[{'Type':'bind','Source':'/wrong','Destination':'/data'}]}
+    container={'Config':{'Image':'jellyfin/jellyfin:12.3','Labels':{'io.nas-setup.owner':owner,'com.docker.compose.service':'jellyfin'}},'State':{'Running':True},'Mounts':[{'Type':'bind','Source':'/wrong','Destination':'/data','RW':True}]}
     system.docker_available=lambda:True
     system.run=lambda args,**kwargs:subprocess.CompletedProcess(args,0,'container-id' if args[1]=='ps' else json.dumps([container]),'')
     with pytest.raises(SetupError,match='existing_installation'):system.check_project_ownership('jellyfin')

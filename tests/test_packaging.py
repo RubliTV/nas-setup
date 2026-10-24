@@ -23,6 +23,8 @@ def test_release_contains_verified_runtime_and_no_secrets(tmp_path):
         names=tar.getnames()
         assert any(n.endswith('/scripts/bootstrap.sh') for n in names)
         assert any(n.endswith('/SHA256SUMS') for n in names)
+        assert any(n.endswith('/nas_setup/omv_bridge.php') for n in names)
+        assert all(n.startswith('nas-setup-0.2.0') for n in names)
         assert not any('/.demo/' in n or '/.venv/' in n or n.endswith('access.json') for n in names)
 
 
@@ -33,8 +35,8 @@ def test_github_release_helper_pins_archive_and_cleans_up(tmp_path):
     helper=tmp_path/'install.sh'
     assert helper.exists()
     script=helper.read_text()
-    assert 'https://github.com/example/nas-setup/releases/download/v0.1.0/nas-setup-0.1.0.tar.gz' in script
-    assert hashlib.sha256((tmp_path/'nas-setup-0.1.0.tar.gz').read_bytes()).hexdigest() in script
+    assert 'https://github.com/example/nas-setup/releases/download/v0.2.0/nas-setup-0.2.0.tar.gz' in script
+    assert hashlib.sha256((tmp_path/'nas-setup-0.2.0.tar.gz').read_bytes()).hexdigest() in script
     assert 'sha256sum --check' in script and 'mktemp -d' in script and 'trap ' in script
     assert '192.168.' not in script
     assert subprocess.run(['bash','-n',str(helper)]).returncode==0

@@ -1,6 +1,6 @@
 # NAS Setup: disks, redundancy and shared folders
 
-Status: design proposed for approval; no disk-provisioning code implemented or released.
+Status: approved 2026-10-24, including multiple users with per-folder permissions; implementation in progress.
 Target: v0.2.0 prerelease in RubliTV/nas-setup. Preserve the published v0.1.0 assets.
 
 ## Intent and agreed requirements
@@ -18,7 +18,7 @@ The user selected broader redundancy support: single disk, RAID 1, RAID 5 and RA
 ## User-visible workflow
 
 1. **Disks and protection.** Show discovered disks by model, capacity, serial/WWN and connection. Clearly mark the OMV system disk as unavailable. Offer existing mounted storage, a new single-disk volume, RAID 1, RAID 5 or RAID 6. Only offer valid choices for the selected disk count and connection type. Show estimated usable capacity and disk-failure tolerance in plain Portuguese/English.
-2. **Shared folders and access.** Default suggestions are Files, Media and Backups, with editable translated share names. Create one ordinary file-sharing account and ask for its password twice. Authenticated access only. No administrator or SSH privileges. User can turn off shares or finish a storage-only NAS with no optional applications.
+2. **Shared folders and access.** Default suggestions are Files, Media and Backups, with editable translated share names. Create one or more ordinary file-sharing accounts and ask for each password twice. A per-folder matrix offers read/write, read-only and no access for each account. Authenticated access only. No administrator or SSH privileges. User can turn off shares or finish a storage-only NAS with no optional applications.
 3. **Applications.** Optional Immich, Jellyfin and Tailscale. Newly provisioned storage is the default data destination. Immich's database defaults to that same protected volume; selecting a separate unprotected volume explicitly changes the displayed protection summary.
 4. **Review.** List each disk by identity, capacity, previous filesystem signatures, operation, array layout, usable capacity, share names and account name. Password is never echoed. Existing-volume reuse shows that no formatting is planned. For a new volume/array, show explicit per-disk erasure acknowledgement plus a typed confirmation. No disk is selected for erasure automatically. Any device or plan change invalidates confirmation.
 5. **Install.** Separate durable steps for storage prerequisites, disk preparation, array creation, filesystem creation, OMV mounting, account/shares, application install and readiness. Install/verify the supported openmediavault-md plugin for RAID selections and validate required tools/RPC schemas before any disk wipe, including storage-only jobs. A dependency failure leaves the disks untouched. Report actual RAID synchronization separately from application progress. Do not display 'protected/complete' while initial synchronization is incomplete or the array is degraded.
@@ -111,7 +111,7 @@ Persisted app mount guards continue to verify both UUID and path. Journal owners
 
 ## Remaining decisions and defaults
 
-User decisions already supplied: RAID 5/6 must be included; test rig has two 1 TB data drives. Proposed implementation defaults: MD+EXT4, RAID 1 recommended for that rig, authenticated SMB, one ordinary file-sharing account, Files/Media/Backups suggestions, direct-attached RAID only, no migration or repair automation. Await design approval before implementation. Confirm SATA/SAS versus USB before the physical test; it does not block implementation against disposable virtual disks.
+User decisions already supplied: RAID 5/6 must be included; test rig has two 1 TB data drives. Proposed implementation defaults: MD+EXT4, RAID 1 recommended for that rig, authenticated SMB, multiple ordinary file-sharing accounts with per-folder permissions, Files/Media/Backups suggestions, direct-attached RAID only, no migration or repair automation. User approved implementation and the multiple-user extension. Confirm SATA/SAS versus USB before the physical test; it does not block implementation against disposable virtual disks.
 
 ## Builder review resolutions
 

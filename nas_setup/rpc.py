@@ -4,7 +4,7 @@ import socket
 from .models import SetupError
 
 MAX_MESSAGE=262144
-OPERATIONS={'inventory','plan','start','job','resume','pause','tailscale','finish'}
+OPERATIONS={'inventory','plan','start','job','resume','pause','tailscale','finish','setup_plan','setup_start','setup_resume'}
 
 class WorkerClient:
     def __init__(self,path):self.path=str(path)

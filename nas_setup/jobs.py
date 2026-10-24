@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from .models import SetupError
 
-ACTIVE={'running','pending','waiting-for-user','interrupted','paused','failed'}
+ACTIVE={'running','pending','waiting-for-user','interrupted','paused','failed','waiting-for-sync'}
 
 class JobStore:
     def __init__(self, directory):
@@ -28,9 +28,10 @@ class JobStore:
             c.rollback(); raise
         finally: c.close()
 
-    def create(self, selection, steps):
+    def create(self, selection, steps, **metadata):
         job={'id':uuid.uuid4().hex,'selection':selection,'status':'running','pause_requested':False,
              'steps':[{'id':s,'status':'pending'} for s in steps], 'error':None,'links':{}}
+        job.update(metadata)
         with self.connect() as c:
             existing=c.execute('SELECT body FROM jobs ORDER BY created DESC LIMIT 1').fetchone()
             if existing and json.loads(existing[0])['status'] in ACTIVE: raise SetupError('job_active')

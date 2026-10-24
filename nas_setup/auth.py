@@ -43,7 +43,7 @@ class Auth:
             self.path.unlink()
             self.sessions.clear()
             token=secrets.token_urlsafe(32); csrf=secrets.token_urlsafe(32)
-            self.sessions[token]={'csrf':csrf,'expires':now+3600}
+            self.sessions[token]={'csrf':csrf,'expires':now+3600,'id':secrets.token_urlsafe(24)}
             return token,csrf
 
     def session(self,token):

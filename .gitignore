@@ -6,3 +6,4 @@ dist/
 *.egg-info/
 .superpowers/
 test-results/
+build/

@@ -14,3 +14,13 @@ Limit: No Linux VM runtime or connected NAS is available here. Real OMV package 
 GitHub distribution: User requested downloads from GitHub and selected personal account nicolasumaras. Add a release-specific HTTPS download helper with an embedded archive checksum, temporary extraction and argument forwarding. Publish v0.1.0 as a prerelease; real OMV validation remains pending. This supersedes the earlier local-only delivery scope.
 
 RubliTV publication: User connected RubliTV and authorized publishing there. README and release helper now target RubliTV/nas-setup; preserve the earlier personal repository.
+
+
+## v0.2 storage and sharing
+User approved the storage design and explicitly requested multiple users with per-folder permissions. This supersedes the earlier apps-only scope. Ruling: proceed with the approved implementation without another permission checkpoint. Disjoint UI, OMV adapter and disposable VM work was delegated under the parallel-agent skill; root integrated the contracts and performed cross-component testing.
+
+Implemented: bilingual storage/users/folders/apps/review/progress wizard, existing EXT4 and single/RAID1/5/6 selection, ordinary users, rw/ro/none permissions, server-owned session-bound erasure plans, secret-isolated credentials, durable operation journal, exact read-only Jellyfin Media exception, versioned packaging.
+
+Independent review identified four issues: recovery plans rejected their own partially provisioned disks; an existing container could retain writable Media; all-read-only ACL masks differed from the checker; completed RAID health could become stale. Fixes include regression coverage; final review and live validation remain in progress.
+
+Test-driven evidence: core planner/journal/engine/media tests were observed failing before implementation, then passed. Added review regressions were observed failing before fixes. UI agent verified real demo API flows and inspected desktop/mobile screenshots. Real storage remains gated pending the separate disposable OMV validation record. No physical NAS disks were touched.

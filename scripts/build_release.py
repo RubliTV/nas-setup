@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import tarfile
 import tempfile
+import tomllib
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -17,7 +18,9 @@ def main():
     if args.repository and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9_.-]*',args.repository):
         p.error('repository must be GitHub owner/repository')
     out=Path(args.output).resolve();out.mkdir(parents=True,exist_ok=True)
-    name='nas-setup-0.1.0'
+    version=tomllib.loads((ROOT/'pyproject.toml').read_text())['project']['version']
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version):raise ValueError('invalid release version')
+    name='nas-setup-'+version
     with tempfile.TemporaryDirectory() as temp:
         package=Path(temp)/name;package.mkdir()
         for namepath in ['nas_setup','scripts','packaging','docs','pyproject.toml','requirements.lock','README.md']:
@@ -34,9 +37,9 @@ def main():
     (out/(target.name+'.sha256')).write_text(hashlib.sha256(target.read_bytes()).hexdigest()+'  '+target.name+'\n')
     helper=out/'install.sh'
     if args.repository:
-        url=f'https://github.com/{args.repository}/releases/download/v0.1.0/{target.name}'
+        url=f'https://github.com/{args.repository}/releases/download/v{version}/{target.name}'
         template=(ROOT/'packaging/download.sh.in').read_text()
-        helper.write_text(template.replace('@ARCHIVE_URL@',url).replace('@ARCHIVE_SHA256@',hashlib.sha256(target.read_bytes()).hexdigest()))
+        helper.write_text(template.replace('@ARCHIVE_DIR@',name).replace('@ARCHIVE_URL@',url).replace('@ARCHIVE_SHA256@',hashlib.sha256(target.read_bytes()).hexdigest()))
         helper.chmod(0o755)
     else:
         # Never leave a helper pointing at a different or stale archive.

@@ -17,10 +17,12 @@ Use a disposable **OMV 8 / Debian 13 / amd64** VM, with separate system and data
 - Confirm Finish disables only the installer; `sudo nas-setup reopen` restores it.
 - Inspect file permissions, service ownership, API origin/CSRF behavior and logs for secrets.
 
-No live OMV, Tailscale enrollment, or J1800 validation has been completed in this development environment. A green local suite is not a claim of hardware or deployment readiness.
+Live storage validation is tracked separately in [v02-vm-validation.md](v02-vm-validation.md). Tailscale enrollment, the full media application combination, and physical J1800 validation remain separate requirements. A green local suite is not a claim of hardware or deployment readiness.
 
 ## Local results (2026-10-24)
 
-29 Python tests pass on Python 3.12 and 3.15. Chrome/Playwright covers pairing, Portuguese/English switching, selection retention, storage selection, simulated installation, reload recovery and a 390px mobile viewport. One Starlette test-client deprecation warning remains.
+The v0.2 Python suite covers RAID minima/capacity, excluded/changed disks, strict users and folder permissions, session-bound erasure consent, expiry/replay, journal-aware recovery, uncertain mutation refusal, SMB/ACL contracts, and exact read-only Media binds. Chrome/Playwright exercises storage modes, multiple users and permissions, Portuguese/English switching, reload, password handling, erasure consent, synchronization, completion and mobile layout. One Starlette test-client deprecation warning remains.
 
-Security/recovery regression tests cover pairing temp-file symlinks, a moved filesystem UUID, unmanaged Docker projects, changed bind sources, occupied ports, invalid saved secrets and redacted failure diagnostics. These are mocked or local filesystem/socket tests; they do not establish live OMV compatibility.
+Security/recovery regression tests also cover pairing temp-file symlinks, a moved filesystem UUID, unmanaged Docker projects, changed bind sources/access mode, occupied ports, invalid saved secrets and redacted failure diagnostics. These are mocked or local filesystem/socket tests; they do not establish live OMV compatibility.
+
+Run `python -m pytest -q` and `node tests/browser.cjs` for current counts and results. The manual live VM harness is under `tests/integration/`; it must only target disposable virtual disks.

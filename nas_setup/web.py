@@ -3,11 +3,14 @@ import hmac
 from pathlib import Path
 from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from .auth import Auth, issue_code
 from .models import SetupError, Selection
+from .setup_models import SetupSelection
+from .setup_engine import SetupStart
 
 class Login(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -21,6 +24,11 @@ def create_app(backend,state_dir,origin,demo=False):
     auth=Auth(state_dir)
     app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
     static=Path(__file__).parent/'static'
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request,error):
+        # Pydantic errors may embed submitted passwords; never echo input values.
+        return JSONResponse({'error':'request_invalid'},status_code=422)
 
     @app.exception_handler(SetupError)
     async def domain_error(request,error):
@@ -87,6 +95,19 @@ def create_app(backend,state_dir,origin,demo=False):
     @app.post('/api/install')
     def install(selection:Selection,request:Request):
         authorize(request,True); return backend.call('start',selection.model_dump())
+
+    @app.post('/api/setup/plan')
+    def setup_plan(selection:SetupSelection,request:Request):
+        session=authorize(request,True)
+        return backend.call('setup_plan',{'session':session['id'],'data':selection.model_dump()})
+
+    @app.post('/api/setup/{operation}')
+    def setup_action(operation:str,body:SetupStart,request:Request):
+        session=authorize(request,True)
+        if operation not in ('start','resume'):raise SetupError('operation_invalid')
+        payload=body.model_dump(exclude={'passwords'})
+        payload['passwords']={key:value.get_secret_value() for key,value in body.passwords.items()}
+        return backend.call('setup_'+operation,{'session':session['id'],'data':payload})
 
     @app.post('/api/{operation}')
     def action(operation:str,request:Request):
