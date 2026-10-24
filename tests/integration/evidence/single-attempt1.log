@@ -1,0 +1,30 @@
+TARGETS [('NASV02DATA1', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA1')]
+MUTATION filesystem_create
+MUTATION mount_set
+MUTATION config_apply
+MUTATION user_set
+MUTATION user_set
+MUTATION user_set
+MUTATION share_set
+Traceback (most recent call last):
+  File "/root/nas-v02-adapter-exercise.py", line 70, in <module>
+    print('VERIFIED DEGRADED MEMBER DETECTION',json.dumps(status),flush=True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 556, in provision
+    shares=[self._share(share,volume,owner,journal) for share in selected['shares']]
+            ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 420, in _share
+    shared=journal.perform(key+'.create',create,verify_created)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/journal.py", line 56, in perform
+    result=action()
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 410, in create
+    obj=self._mutate('share_set',{'uuid':NEW_UUID,'name':selected['name'],'mntentref':volume['mount_uuid'],
+        'reldirpath':relative,'comment':comment,'mode':'700'})
+  File "/root/nas-v02-adapter-exercise.py", line 23, in _mutate
+    result=super()._mutate(op,params)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 649, in _mutate
+    result=self._rpc(operation,params)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 119, in _rpc
+    if result.returncode:raise SetupError('omv_rpc_failed')
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+nas_setup.models.SetupError: omv_rpc_failed

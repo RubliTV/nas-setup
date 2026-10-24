@@ -75,6 +75,22 @@ and `verify_schemas(raid=True)` passed, and `omv-clean` was saved and listed
 on every virtual disk (919 MiB of VM state). This is the reset point for the live
 matrix; test output must be copied to the host before a restore.
 
+## Live run findings
+
+The first single-disk attempt completed the actual `filesystem_create`,
+`mount_set`, configuration apply, and three user creation calls, then failed at
+`share_set` with the bridge's generic `omv_rpc_failed` response. The adapter agent
+traced this to OMV's configured new-object UUID sentinel and changed the bridge
+to translate the fixed internal `new` marker through OMV's environment setting.
+This attempt is **not a passing single-disk result**. Its log is preserved as
+`tests/integration/evidence/single-attempt1.log`; no password values appear there.
+The harness was updated during the attempt, so traceback source-line snippets
+may reflect the newer source; operation names and terminal error are preserved.
+
+The VM was restored to `omv-clean`, then `lsblk` verified all four data disks were
+again blank and unmounted before a corrected retry. The OS root and EFI
+partitions remained on the separate system disk.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
