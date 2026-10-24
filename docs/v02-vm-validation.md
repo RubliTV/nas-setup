@@ -101,6 +101,16 @@ failure tolerance as expected. Evidence is in `single-pass.log` and
 `single-resources.json` in the integration evidence directory. Reboot and
 remaining RAID/fault cases are separate pending checks.
 
+Existing-volume reuse then passed with zero mutation RPCs. Conflict tests rejected
+an existing username, an existing share, and unrelated pending OMV configuration
+changes before any provisioning mutation. The test restored its temporary SMB
+setting change and applied it. Evidence: `existing-pass.log` and
+`conflicts-pass.log`. An actual guest reboot completed with a new boot ID and
+both OMV's engine and Samba active; the post-reboot assertions then passed: healthy status, exact SMB file content,
+and denied access for the excluded account. See `single-reboot-pass.log`.
+The guest was restored to the clean snapshot with all four data disks blank
+and unmounted before starting RAID cases.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
@@ -111,14 +121,15 @@ remaining RAID/fault cases are separate pending checks.
 | Guest disk baseline | Distinct OS root ancestry; four unique unmounted SATA disks | Passed (baseline JSON) |
 | Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Pending |
 | Single disk | EXT4 create, UUID, registered OMV mount and database objects | Passed |
+| Existing-volume reuse | Reuse registered mounted filesystem without mutation RPCs | Passed |
 | RAID 1 | Two exact members, synchronization, healthy status | Pending |
 | RAID 5 | Three exact members, synchronization, healthy status | Pending |
 | RAID 6 | Four exact members, synchronization, healthy status | Pending |
 | SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk; RAID cases pending |
 | Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk; RAID cases pending |
-| Reboot | Exact mounts, members, shares, permissions and ownership persist | Pending |
+| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk; RAID cases pending |
 | Degraded array | Missing member detected; protected completion blocked | Pending |
-| Conflicts | Existing unrelated objects and pending changes rejected | Pending |
+| Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
 | Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
 
