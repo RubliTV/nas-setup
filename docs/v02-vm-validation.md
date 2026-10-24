@@ -141,7 +141,11 @@ status and two-disk failure tolerance. It completed the actual permissions, SMB
 content/denial, POSIX denial and zero-mutation journal replay assertions. See
 `raid6-pass.log` and `raid6-resources.json`. The harness checks OS exclusion
 before every mode, and the RAID 6 resource record identifies all four synthetic
-data disks as eligible. Reboot and fault results remain separate checks.
+data disks as eligible. An actual guest reboot preserved healthy status, saved SMB content and denied
+access. Removing the fourth member produced degraded status and the actual
+engine blocked Finish. See `raid6-reboot-pass.log` and
+`raid6-degraded-pass.log`. A clean snapshot restore followed before the
+lost-format fault case.
 
 A controlled MD consistency check on the healthy RAID 6 array exposed actual
 `syncing` status with progress below 100. The real engine kept the job waiting
@@ -164,8 +168,8 @@ for synchronization and refused Finish; the harness restored `sync_action` to
 | RAID 6 | Four exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 2 |
 | SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk and RAID 1/5/6 |
 | Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk and RAID 1/5/6 |
-| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
-| Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1 and RAID 5, including actual engine Finish rejection |
+| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk and RAID 1/5/6 |
+| Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1/5/6, including actual engine Finish rejection |
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
 | Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1/5/6 |
 | Synchronizing array | Real MD operation reports incomplete progress; actual engine blocks Finish | Passed on RAID 6; consistency check with idle cleanup |
