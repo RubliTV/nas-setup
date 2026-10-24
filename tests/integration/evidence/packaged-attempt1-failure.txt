@@ -1,0 +1,11 @@
+Bootstrap attempt 1 failed before /opt/nas-setup or /etc/nas-setup existed.
+Command: apt-get update
+Exit status: 100
+Repository: Debian trixie-security
+Error: OpenPGP signatures were created after the --not-after date.
+Host UTC: 2026-10-24 22:38:27
+Restored guest UTC: 2026-10-24 21:32:31
+Guest time synchronization service: inactive
+Correction: set disposable guest UTC from host epoch; no signature validation bypass.
+Retry uses the unchanged archive SHA recorded alongside this file.
+Full private bootstrap log retained only inside disposable guest.

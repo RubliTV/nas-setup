@@ -1,0 +1,9 @@
+Candidate archive SHA256: c63ca3a1c58443bb6e96833453327798ec9d9da17b3f181e3dc1b291a5ebeadc
+Harness systemd unit UMask=0077.
+Bootstrap installed runtime but failed when reopen attempted its unprivileged subprocess.
+Exception: PermissionError: [Errno 13] Permission denied: /opt/nas-setup/venv/bin/python3
+Failing caller: nas_setup/cli.py main; packaging/install.py reopen command exited1.
+Observed mode/owner: /opt/nas-setup, venv, venv/bin, venv/lib all0700root:root.
+Both nas-setup services inactive.
+Cause: mkdir(mode0755) and virtualenv creation inherited restrictive umask.
+No successful packaged installation claimed. Full private logs retained in packaged-failure VM snapshot.

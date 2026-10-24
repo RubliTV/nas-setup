@@ -1,0 +1,1 @@
+c63ca3a1c58443bb6e96833453327798ec9d9da17b3f181e3dc1b291a5ebeadc  nas-setup-0.2.0.tar.gz

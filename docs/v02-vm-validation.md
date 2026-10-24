@@ -164,6 +164,23 @@ again required recovery with zero mutations. The filesystem UUID was unchanged.
 See `lost-format-pass.log` and `lost-format-reboot-pass.log`. This is an injected
 response-loss test, not a simulation of every power-loss timing.
 
+## Packaged installer smoke
+
+The enabled candidate is tested through its real bootstrap and HTTPS API on
+a clean snapshot, with the MD plugin removed so the RAID 1 wizard must install
+its prerequisite. Only synthetic data disks 1 and 2 are authorized targets.
+
+Attempt 1 stopped during apt update because snapshot restore had rolled the
+guest clock behind current Debian repository signatures. Correcting guest UTC
+from the host fixed the environment without bypassing signature checks. Attempt
+2 exposed an installer bug under the smoke service's restrictive `UMask=0077`:
+runtime directories inherited mode 0700 and the unprivileged pairing subprocess
+could not execute the venv interpreter. Both failed attempts remain failures;
+see `packaged-attempt1-failure.txt` and `packaged-attempt2-failure.txt`. Full
+private logs are retained only in the disposable `packaged-failure` VM snapshot.
+A corrected candidate must pass a fresh bootstrap before packaged validation
+can be claimed.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |

@@ -57,6 +57,18 @@ save` records the complete disposable VM state as `omv-clean`. `restore` rolls
 back that guest and all four virtual data images; collect test evidence on the
 host before restoring. `list` reports available snapshots. No restore runs
 automatically, and the helper only connects to the fixed temporary monitor socket.
+A restored snapshot can roll back the guest wall clock. Before any package
+update or TLS check, compare host/guest UTC and synchronize the disposable guest
+to the host clock. Keep repository signature verification enabled. For this
+fixed temporary VM only:
+
+```sh
+python3 - <<'PYTIME'
+import subprocess, time
+subprocess.run(['/tmp/nas-v02-vm/ssh.sh',
+                'date -u -s @' + str(int(time.time()))], check=True)
+PYTIME
+```
 
 `exercise_omv_adapter.py` is the destructive live matrix driver. It accepts
 `single`, `raid1`, `raid5`, `raid6`, `lost-format`, `verify` (reboot check),
