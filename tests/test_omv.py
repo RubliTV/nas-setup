@@ -44,7 +44,8 @@ def test_missing_root_topology_fails_closed():
     assert not omv.classify_disks(tree,ids,{})[0]['eligible']
 
 
-def test_unvalidated_adapter_refuses_even_existing_volume_and_no_shell_calls(tmp_path):
+def test_unvalidated_adapter_refuses_even_existing_volume_and_no_shell_calls(tmp_path,monkeypatch):
+    monkeypatch.setattr(omv,'ADAPTER_VALIDATED',False)
     class System:
         state=tmp_path
         def run(self,*a,**kw):pytest.fail('must gate before subprocess')
@@ -438,3 +439,38 @@ def test_exact_validated_package_versions_required(tmp_path,raid,versions,accept
     else:
         with pytest.raises(SetupError,match='omv_version_unsupported'):adapter._verify_packages(raid)
     if not raid:assert not any(call[3]=='openmediavault-md' for call in calls)
+
+
+@pytest.mark.parametrize('operation,expected_timeout',[('config_apply',1740),('disk_list',180)])
+def test_php_bridge_allows_bounded_slow_config_apply(tmp_path,operation,expected_timeout):
+    import shutil,subprocess
+    php=shutil.which('php')
+    if not php:pytest.skip('PHP CLI required for bridge contract execution')
+    includes=tmp_path/'openmediavault';includes.mkdir()
+    (includes/'globals.inc').write_text('<?php define("OMV_ROLE_ADMINISTRATOR", 1);')
+    (includes/'functions.inc').write_text('<?php')
+    (includes/'autoloader.inc').write_text('''<?php
+namespace OMV {
+class Environment {
+    private static $values = ['OMV_ENGINED_SO_RCVTIMEO' => 180];
+    public static function get($name, $default = null) { return self::$values[$name] ?? $default; }
+    public static function set($name, $value) { self::$values[$name] = $value; }
+}}
+namespace OMV\\Rpc {
+class Rpc {
+    const MODE_REMOTE = 2;
+    public static function call($service, $method, $params, $context, $mode) {
+        return ['timeout' => \\OMV\\Environment::get('OMV_ENGINED_SO_RCVTIMEO'), 'service' => $service];
+    }
+}}
+''')
+    # Test only: replace the identity check inside this unprivileged PHP process.
+    # No real OMV implementation, daemon or device is accessible to the stub.
+    bootstrap=tmp_path/'bootstrap.php'
+    bootstrap.write_text('<?php function posix_geteuid() { return 0; }')
+    result=subprocess.run([php,'-d','disable_functions=posix_geteuid','-d','auto_prepend_file='+str(bootstrap),
+        '-d','include_path='+str(tmp_path),str(omv.BRIDGE)],input=json.dumps({'operation':operation,'params':None}),
+        text=True,capture_output=True,timeout=10)
+    assert result.returncode==0,result.stderr
+    assert json.loads(result.stdout)=={'ok':True,'result':{'timeout':expected_timeout,
+        'service':'Config' if operation=='config_apply' else 'DiskMgmt'}}

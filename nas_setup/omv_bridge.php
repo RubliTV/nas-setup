@@ -40,6 +40,11 @@ try {
     require_once('openmediavault/functions.inc');
     $context = ['username' => \OMV\Environment::get('OMV_WEBGUI_ADMINUSER_NAME', 'admin'),
                 'role' => OMV_ROLE_ADMINISTRATOR];
+    if ($request['operation'] === 'config_apply') {
+        // Salt deployment can exceed OMV's default 180-second RPC wait while
+        // an array is synchronizing. Stay below Python's 1800-second bound.
+        \OMV\Environment::set('OMV_ENGINED_SO_RCVTIMEO', 1740);
+    }
     if (in_array($request['operation'], ['share_set', 'smb_share_set'], true) &&
         ($request['params']['uuid'] ?? null) === 'new') {
         $request['params']['uuid'] = \OMV\Environment::get('OMV_CONFIGOBJECT_NEW_UUID');
