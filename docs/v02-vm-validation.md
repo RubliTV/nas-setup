@@ -1,6 +1,6 @@
 # v0.2 disposable OMV validation
 
-Status: Debian VM boot, SSH and installed schema hashes passed; OMV package recovery in progress; **not a provisioning certification**.
+Status: disposable OMV environment ready; baseline and installed schema hashes passed; live provisioning matrix pending; **not a provisioning certification**.
 
 The production adapter gate must remain disabled until the actual destructive
 paths pass the matrix below. Python mocks, schema inspection, browser simulation,
@@ -58,17 +58,22 @@ clocksource and SSH works again. Package recovery runs through the transient
 A clean powered-off restart after removing the seed disk also succeeded.
 
 Installed package versions are `openmediavault 8.5.12-1` and
-`openmediavault-md 8.1.6-1`; their complete configuration is still being verified.
+`openmediavault-md 8.1.6-1`; both are fully configured. `dpkg --audit` returned no output,
+`openmediavault-engined` is active, and the read-only baseline probe succeeded.
+The reviewed NAS Setup 0.2.0 wheel and dependencies are installed in
+`/root/nas-venv`; the guest uses HPET. See
+`tests/integration/evidence/baseline.json` for package and disk evidence.
 All eight installed RPC JSON schemas match the exact pinned adapter hashes.
 
 ## Required live matrix
 
 | Check | Evidence required | Result |
 |---|---|---|
-| Platform | Debian 13, amd64, exact OMV/MD package versions | Pending |
+| Platform | Debian 13, amd64, exact OMV/MD package versions | Passed; OMV 8.5.12-1 / MD 8.1.6-1 |
 | RPC schema files | All eight installed schema hashes equal adapter constants | Passed (see `tests/integration/evidence/schema-check.txt`) |
 | RPC runtime | Bridge dispatch and actual operation response shapes | Pending |
-| Inventory exclusion | OS ancestry excluded; four uniquely identified SATA data disks | Pending |
+| Guest disk baseline | Distinct OS root ancestry; four unique unmounted SATA disks | Passed (baseline JSON) |
+| Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Pending |
 | Single disk | EXT4 create, UUID, registered OMV mount and database objects | Pending |
 | RAID 1 | Two exact members, synchronization, healthy status | Pending |
 | RAID 5 | Three exact members, synchronization, healthy status | Pending |
