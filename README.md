@@ -54,7 +54,23 @@ sudo bash nas-setup-0.1.0/scripts/bootstrap.sh --address 192.168.1.50
 
 The bootstrap checks the supported OS before installing dependencies. It prints an HTTPS address, a 15-minute single-use access code, and the certificate fingerprint. Compare the fingerprint before trusting the generated certificate in your browser. Then select apps, select storage, review the plan, and start installation.
 
-There is **no published download endpoint yet**. A hosted one-line download command requires publishing the release to a repository you control. Do not substitute an invented URL. Checksums downloaded from the same origin as the release detect corruption, not publisher compromise; users must trust the publisher.
+### Download directly on the NAS
+
+The GitHub test release is intended for an OMV test machine with disposable data. Log in to the NAS as root and run:
+
+```sh
+curl -fsSL https://github.com/nicolasumaras/nas-setup/releases/download/v0.1.0/install.sh | bash
+```
+
+The helper downloads the versioned archive over HTTPS, verifies its embedded SHA-256 checksum, extracts into a temporary directory, then runs the same bootstrap above. Your Mac does not need to be online. To inspect before executing, download `install.sh` first and read it locally. The helper and archive come from the same publisher; checksums detect corruption, not publisher compromise.
+
+For multiple LAN addresses, pass the selected NAS address:
+
+```sh
+curl -fsSL https://github.com/nicolasumaras/nas-setup/releases/download/v0.1.0/install.sh | bash -s -- --address 192.168.1.50
+```
+
+Maintainers can build all three release assets with `python3 scripts/build_release.py --repository nicolasumaras/nas-setup`. Upload the generated archive, checksum and `install.sh` together to release `v0.1.0`. Never replace a published version with a different archive.
 
 ### Finish and reopen
 

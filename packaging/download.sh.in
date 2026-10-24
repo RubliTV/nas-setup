@@ -1,0 +1,22 @@
+#!/bin/bash
+# NAS Setup: download and verify the versioned GitHub release.
+set -euo pipefail
+main() (
+    if [ "$(id -u)" -ne 0 ]; then
+        echo 'Run as root on the OMV NAS / Execute como root no NAS OMV.' >&2
+        exit 1
+    fi
+    if [ "$(uname -s)" != Linux ]; then
+        echo 'Requires OMV 8 / Debian 13 / amd64. Execute no NAS OMV.' >&2
+        exit 1
+    fi
+    NAS_DOWNLOAD_DIR=$(mktemp -d)
+    trap 'rm -rf -- "$NAS_DOWNLOAD_DIR"' EXIT
+    cd "$NAS_DOWNLOAD_DIR"
+    curl --proto '=https' --tlsv1.2 --fail --show-error --location \
+        --connect-timeout 15 --max-time 300 '@ARCHIVE_URL@' -o release.tar.gz
+    printf '%s  release.tar.gz\n' '@ARCHIVE_SHA256@' | sha256sum --check -
+    tar -xzf release.tar.gz
+    bash nas-setup-0.1.0/scripts/bootstrap.sh "$@"
+)
+main "$@"
