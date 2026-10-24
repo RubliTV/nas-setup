@@ -1,6 +1,6 @@
 # v0.2 disposable OMV validation
 
-Status: disposable OMV environment ready; baseline and installed schema hashes passed; live provisioning matrix pending; **not a provisioning certification**.
+Status: single-disk live case passed; remaining matrix cases pending; **not a provisioning certification**.
 
 The production adapter gate must remain disabled until the actual destructive
 paths pass the matrix below. Python mocks, schema inspection, browser simulation,
@@ -91,6 +91,16 @@ The VM was restored to `omv-clean`, then `lsblk` verified all four data disks we
 again blank and unmounted before a corrected retry. The OS root and EFI
 partitions remained on the separate system disk.
 
+The corrected single-disk attempt passed with actual EXT4 creation, OMV mount,
+three ordinary users, two registered shared folders and SMB shares, and the
+requested rw/ro/none permission matrices. SMB upload/download content matched;
+read-only writes and excluded-user share access were denied. Local POSIX access
+was also denied for cross-user paths. Replaying the completed journal invoked
+zero mutation RPCs. The final single-disk health was `healthy`, with zero disk
+failure tolerance as expected. Evidence is in `single-pass.log` and
+`single-resources.json` in the integration evidence directory. Reboot and
+remaining RAID/fault cases are separate pending checks.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
@@ -100,15 +110,16 @@ partitions remained on the separate system disk.
 | RPC runtime | Bridge dispatch and actual operation response shapes | Pending |
 | Guest disk baseline | Distinct OS root ancestry; four unique unmounted SATA disks | Passed (baseline JSON) |
 | Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Pending |
-| Single disk | EXT4 create, UUID, registered OMV mount and database objects | Pending |
+| Single disk | EXT4 create, UUID, registered OMV mount and database objects | Passed |
 | RAID 1 | Two exact members, synchronization, healthy status | Pending |
 | RAID 5 | Three exact members, synchronization, healthy status | Pending |
 | RAID 6 | Four exact members, synchronization, healthy status | Pending |
-| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Pending |
-| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Pending |
+| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk; RAID cases pending |
+| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk; RAID cases pending |
 | Reboot | Exact mounts, members, shares, permissions and ownership persist | Pending |
 | Degraded array | Missing member detected; protected completion blocked | Pending |
 | Conflicts | Existing unrelated objects and pending changes rejected | Pending |
+| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
 
 Each storage layout requires a fresh disposable disk set or documented rollback
