@@ -64,6 +64,16 @@ The reviewed NAS Setup 0.2.0 wheel and dependencies are installed in
 `/root/nas-venv`; the guest uses HPET. See
 `tests/integration/evidence/baseline.json` for package and disk evidence.
 All eight installed RPC JSON schemas match the exact pinned adapter hashes.
+Installed PHP implementation hashes differ from the audited upstream commit for
+DiskMgmt, FileSystemMgmt and MdMgmt, even though their schemas match. The adapter
+agent identified absent upstream device-settle waits in this installed version
+and added an explicit `udevadm settle` after background completion. This source
+comparison is recorded in `tests/integration/evidence/implementation-check.txt`;
+live behavior still requires the matrix below.
+The latest adapter and PHP bridge were overlaid into the venv, guest PHP lint
+and `verify_schemas(raid=True)` passed, and `omv-clean` was saved and listed
+on every virtual disk (919 MiB of VM state). This is the reset point for the live
+matrix; test output must be copied to the host before a restore.
 
 ## Required live matrix
 

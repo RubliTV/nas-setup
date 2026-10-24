@@ -1,0 +1,9 @@
+8cf0dedffe3eee0c36a6b961573c05490dcd8666c458560d58e6ef3d87a03b54  /usr/share/openmediavault/engined/rpc/config.inc
+1f343c73a75526bc75f2c7c4269c386396085fb61e6f84925bbbac4434be5cc4  /usr/share/openmediavault/engined/rpc/diskmgmt.inc
+8c38645820816d1ceedff017dc2f95a3077cee94aed771e9bca99309db507ce8  /usr/share/openmediavault/engined/rpc/exec.inc
+2cc965a4294577630d85200884c2c00f4ea5f026ab740b64b24a74b7a789b7b2  /usr/share/openmediavault/engined/rpc/filesystemmgmt.inc
+7a8979e51276f9b7031db8b4e6d7ec6f6e13a6e0ee4746184f9ae4d978b316cf  /usr/share/openmediavault/engined/rpc/mdmgmt.inc
+e2a0cd9eb383685ac3a738d834b252ca8ffc5e74a501c917b7b1b80d28e185f2  /usr/share/openmediavault/engined/rpc/sharemgmt.inc
+0c9a64915e5af2bfaea0ed93a990af0e269e3c2783cedbe55ab3ba359aa85f94  /usr/share/openmediavault/engined/rpc/smb.inc
+df0324adaff6ef55451cf5c1a8ac700d6160b486cae51166bd318009ac097d2d  /usr/share/openmediavault/engined/rpc/usermgmt.inc
+Exact implementation matches: {'config.inc': True, 'diskmgmt.inc': False, 'exec.inc': True, 'filesystemmgmt.inc': False, 'mdmgmt.inc': False, 'sharemgmt.inc': True, 'smb.inc': True, 'usermgmt.inc': True}

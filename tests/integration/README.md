@@ -16,7 +16,10 @@ SSH public key. Keep its private key outside this repository.
 
 `install_disposable_omv.sh` follows the official OMV 8 Debian installation sequence
 inside that guest, checking the hostname, platform, and dedicated disk serials
-before installing packages. It does not wipe data disks. The guest can reach the
+before installing packages. Launch it through `systemd-run --unit=nas-v02-install
+/root/install_disposable_omv.sh` after copying it into the guest; a background
+SSH shell can be terminated during OMV service reconfiguration. It does not
+wipe data disks. The guest can reach the
 Internet through QEMU user networking; no guest SMB or web listener is forwarded.
 
 Copy the repository/package and `probe_omv_environment.py` into the guest, then
