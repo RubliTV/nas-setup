@@ -163,7 +163,7 @@ class OmvProvisioner:
             if package=='openmediavault-md' and not raid:continue
             installed=self.system.run(['dpkg-query','--show','--showformat=${db:Status-Status}\t${Version}',package],check=False)
             if installed.returncode or installed.stdout.strip()!='installed\t'+version:
-                raise SetupError('provisioning_unvalidated')
+                raise SetupError('omv_version_unsupported')
 
     def _preflight_conflicts(self,selection):
         for user in selection['users']:

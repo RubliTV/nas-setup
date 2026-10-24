@@ -436,5 +436,5 @@ def test_exact_validated_package_versions_required(tmp_path,raid,versions,accept
     adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path,run=run))
     if accepted:adapter._verify_packages(raid)
     else:
-        with pytest.raises(SetupError,match='provisioning_unvalidated'):adapter._verify_packages(raid)
+        with pytest.raises(SetupError,match='omv_version_unsupported'):adapter._verify_packages(raid)
     if not raid:assert not any(call[3]=='openmediavault-md' for call in calls)
