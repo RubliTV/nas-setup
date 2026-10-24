@@ -47,6 +47,9 @@ def main():
         digest,name=line.split('  ',1);target=ROOT/name
         if not target.resolve().is_relative_to(ROOT) or target.is_symlink():p.error('Invalid release path')
         if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:p.error('Release checksum failed / Verificação falhou')
+    # The web service must traverse the runtime even when root uses umask 0077.
+    # Private state, TLS keys and service processes retain explicit restrictive modes.
+    os.umask(0o022)
     print('Installing dependencies / Instalando dependências…',flush=True)
     run('apt-get','update')
     run('apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install','python3-venv','openssl','ca-certificates')
