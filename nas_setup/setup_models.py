@@ -92,7 +92,7 @@ def plan_setup(selection: SetupSelection, inventory: dict) -> dict:
         matches=[v for v in inventory.get('volumes',[]) if v['id']==selection.storage.volume]
         if len(matches)!=1:raise SetupError('volume_missing')
         vol=matches[0]
-        if vol.get('fstype') not in {'ext4'}:raise SetupError('unsafe_storage')
+        if vol.get('fstype')!='ext4':raise SetupError('omv_filesystem_unsupported')
         capacity=int(vol.get('size_gb',0)*2**30)
         if any(a in selection.apps for a in ('immich','jellyfin')) and vol.get('free_gb',0)<10:
             raise SetupError('storage_full')

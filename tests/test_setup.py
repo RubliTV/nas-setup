@@ -76,7 +76,7 @@ def test_raid_requires_direct_supported_transport(transport):
 def test_existing_volume_requires_validated_filesystem():
     Model,plan,Error=api();inv=inventory();inv['volumes'][0]['fstype']='xfs'
     data=choice();data['storage']={'mode':'existing','volume':'existing'}
-    with pytest.raises(Error,match='unsafe_storage'):plan(Model(**data),inv)
+    with pytest.raises(Error,match='omv_filesystem_unsupported'):plan(Model(**data),inv)
 
 
 def test_partition_topology_change_invalidates_disk_fingerprint():

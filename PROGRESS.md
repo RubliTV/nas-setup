@@ -21,6 +21,10 @@ User approved the storage design and explicitly requested multiple users with pe
 
 Implemented: bilingual storage/users/folders/apps/review/progress wizard, existing EXT4 and single/RAID1/5/6 selection, ordinary users, rw/ro/none permissions, server-owned session-bound erasure plans, secret-isolated credentials, durable operation journal, exact read-only Jellyfin Media exception, versioned packaging.
 
-Independent review identified four issues: recovery plans rejected their own partially provisioned disks; an existing container could retain writable Media; all-read-only ACL masks differed from the checker; completed RAID health could become stale. Fixes include regression coverage; final review and live validation remain in progress.
+Independent review identified four issues: recovery plans rejected their own partially provisioned disks; an existing container could retain writable Media; all-read-only ACL masks differed from the checker; completed RAID health could become stale. All four fixes passed fresh independent re-review and regression tests. Recovery review now requests erasure consent only when destructive operations remain. Live validation remains in progress.
 
 Test-driven evidence: core planner/journal/engine/media tests were observed failing before implementation, then passed. Added review regressions were observed failing before fixes. UI agent verified real demo API flows and inspected desktop/mobile screenshots. Real storage remains gated pending the separate disposable OMV validation record. No physical NAS disks were touched.
+
+Integration ruling: prior user authorization to publish to RubliTV covers pushing this implementation branch and creating a draft PR. Keep the public v0.1 release unchanged; no v0.2 install release until the approved live storage matrix passes. The normal repository is retained for continued VM integration work.
+
+Verification snapshot: 101 Python tests pass on Python3.15; Python3.12 passed94 before the final additional regressions. Expanded Chrome/Playwright flow passes; source archive internal/external SHA256 checks and wheel PHP bridge inclusion verified. VM single-vCPU recovery reached OMV service deployment; all8 installed RPC schemas match audited hashes. These are not full live provisioning results.
