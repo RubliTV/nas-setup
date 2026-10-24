@@ -31,6 +31,7 @@ function applyLanguage(){
  $('lang-pt').classList.toggle('active',lang==='pt-BR');$('lang-en').classList.toggle('active',lang==='en');
  if(inventory){renderInventory();renderUsers();renderShares();}if(plan)renderPlan();if(job)renderJob();if(errorCode)text('error',message(errorCode));updateSelection();
 }
+function toleranceLabel(count){return t(count===0?'toleranceNone':count===1?'toleranceOne':'tolerance',{count});}
 function size(bytes){return `${(Number(bytes||0)/1e12).toLocaleString(lang,{minimumFractionDigits:2,maximumFractionDigits:2})} TB`;}
 function diskReason(d){if(!d.eligible)return t('disk_'+d.reason)===('disk_'+d.reason)?t('disk_unavailable'):t('disk_'+d.reason);if(!canUseDisk(d))return t(inventory.provisioning_enabled===false?'provisionGate':'disk_transport');return t('diskAvailable');}
 function renderInventory(){
@@ -50,7 +51,7 @@ function renderInventory(){
 function renderCapacity(){
  const mode=draft.storage.mode,disks=chosenDisks(),n=disks.length,min=n?Math.min(...disks.map(d=>Number(d.size_bytes))):0;
  const capacity=({single:min,raid1:min,raid5:Math.max(0,n-1)*min,raid6:Math.max(0,n-2)*min})[mode]||0;
- $('existing-options').hidden=mode!=='existing';text('layout-hint',t('layout_'+mode));text('capacity-value',mode==='existing'?t('existingCapacity'):validStorage()?size(capacity):'—');text('capacity-binary',mode!=='existing'&&validStorage()?`${(capacity/2**40).toLocaleString(lang,{maximumFractionDigits:2})} TiB · ${t('beforeOverhead')}`:'');text('tolerance-value',mode==='existing'?t('checkOmv'):t('tolerance',{count:mode==='single'?0:mode==='raid6'?2:1}));$('mixed-capacity').hidden=new Set(disks.map(d=>d.size_bytes)).size<2;
+ $('existing-options').hidden=mode!=='existing';text('layout-hint',t('layout_'+mode));text('capacity-value',mode==='existing'?t('existingCapacity'):validStorage()?size(capacity):'—');text('capacity-binary',mode!=='existing'&&validStorage()?`${(capacity/2**40).toLocaleString(lang,{maximumFractionDigits:2})} TiB · ${t('beforeOverhead')}`:'');text('tolerance-value',mode==='existing'?t('checkOmv'):toleranceLabel(mode==='single'?0:mode==='raid6'?2:1));$('mixed-capacity').hidden=new Set(disks.map(d=>d.size_bytes)).size<2;
 }
 function inputField(label,cls,type,value,oninput){const wrap=node('label','field');wrap.append(node('span','',label));const input=node('input',cls);input.type=type;input.value=value||'';input.autocomplete=type==='password'?'new-password':'off';input.maxLength=type==='password'?128:32;input.oninput=()=>oninput(input.value);wrap.append(input);return wrap;}
 function renderUsers(){
@@ -72,12 +73,12 @@ function renderShares(){
 function validateUsers(){const names=draft.users.map(u=>u.name.trim());if(names.some(n=>!/^[a-z][a-z0-9_-]{0,30}$/.test(n))||new Set(names).size!==names.length)throw new Error('username_invalid');if(draft.shares.some(s=>s.enabled)&&!names.length)throw new Error('permissions_invalid');for(let i=0;i<names.length;i++){const p=passwords[i]||{};if(!p.password||p.password.length<12||p.password.length>128)throw new Error('password_required');if(p.password!==p.confirm)throw new Error('password_mismatch');}}
 function labelStep(id){return ['immich','jellyfin','tailscale'].includes(id)?{immich:'Immich',jellyfin:'Jellyfin',tailscale:'Tailscale'}[id]:t(id);}
 function renderPlan(){
- const summary=$('review-summary');summary.replaceChildren(node('h3','',t('mode_'+plan.selection.storage.mode)),node('p','',`${size(plan.capacity_bytes)} · ${plan.selection.storage.mode==='existing'?t('checkOmv'):t('tolerance',{count:plan.tolerance||0})}`));
+ const summary=$('review-summary');summary.replaceChildren(node('h3','',t('mode_'+plan.selection.storage.mode)),node('p','',`${size(plan.capacity_bytes)} · ${plan.selection.storage.mode==='existing'?t('checkOmv'):toleranceLabel(plan.tolerance||0)}`));
  for(const s of plan.selection.shares||[]){summary.append(node('strong','',s.name),node('p','',Object.entries(s.permissions).map(([u,p])=>`${u}: ${t('permission_'+p)}`).join(' · ')));}
  if(plan.selection.users?.length)summary.append(node('p','',`${t('fileUsers')}: ${plan.selection.users.map(u=>u.name).join(', ')}`));
  if(!plan.selection.apps.length)summary.append(node('p','',t('noApps')));
  const rows=$('plan-list');rows.replaceChildren();for(const [i,step] of plan.steps.entries()){const row=node('div','plan-row');row.append(node('strong','',labelStep(typeof step==='string'?step:step.id)),node('span','',String(i+1).padStart(2,'0')));rows.append(row);}
- text('plan-storage',t(plan.destructive?'newFilesystem':'reuseHint'));$('warnings').replaceChildren();for(const warning of plan.warnings||[])$('warnings').append(node('div','note',dictionaries[lang]?.['warning_'+warning]||t('planWarning')));
+ text('plan-storage',t(plan.recovery?'recoveryHint':plan.destructive?'newFilesystem':'reuseHint'));$('warnings').replaceChildren();for(const warning of plan.warnings||[])$('warnings').append(node('div','note',dictionaries[lang]?.['warning_'+warning]||t('planWarning')));
  const checked=new Set([...document.querySelectorAll('.erase-check:checked')].map(c=>c.value)),targets=$('erase-targets');targets.replaceChildren();$('erase-review').hidden=!(plan.destructive||plan.confirmation_required);
  for(const d of plan.targets||[]){const label=node('label','erase-target'),check=node('input','erase-check');check.type='checkbox';check.value=d.id;check.checked=checked.has(d.id);check.onchange=updateSelection;const detail=node('span');detail.append(node('strong','',`${d.model} · ${size(d.size_bytes)}`),node('code','',`${d.serial||d.id} · ${(d.transport||'').toUpperCase()}`),node('span','',t('eraseAcknowledge')));const signatures=d.signatures||inventory.disks.find(x=>x.id===d.id)?.signatures||[];detail.append(node('small','',`${t('signatures')}: ${signatures.length?signatures.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(', '):t('noSignatures')}`));label.append(check,detail);targets.append(label);}
  updateSelection();

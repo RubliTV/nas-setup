@@ -155,7 +155,7 @@
     "layout_existing": "A estrutura e a proteção do volume são mantidas. Confira seu estado no OMV.",
     "usableCapacity": "Capacidade útil estimada",
     "diskTolerance": "Tolerância a falhas",
-    "tolerance": "{count} disco(s)",
+    "tolerance": "Tolera falha de {count} discos",
     "afterSync": "Em RAID, após sincronização completa",
     "beforeOverhead": "antes de metadados e formatação",
     "existingCapacity": "Volume existente",
@@ -260,7 +260,11 @@
     "disk_missing_identity": "Identidade não confirmada",
     "disk_duplicate_identity": "Identidade duplicada · indisponível",
     "disk_topology_incomplete": "Topologia não confirmada",
-    "disk_unknown_transport": "Conexão não confirmada"
+    "disk_unknown_transport": "Conexão não confirmada",
+    "toleranceOne": "Tolera falha de 1 disco",
+    "toleranceNone": "Sem tolerância a falhas",
+    "recoveryHint": "Retome as etapas restantes; operações de disco concluídas não serão repetidas.",
+    "error_recovery_resume_only": "Já existe uma configuração em recuperação. Retome o trabalho salvo; não inicie uma nova instalação."
   },
   "en": {
     "sidebarCaption": "SET UP YOUR NAS",
@@ -418,7 +422,7 @@
     "layout_existing": "The volume layout and protection are preserved. Check its status in OMV.",
     "usableCapacity": "Estimated usable capacity",
     "diskTolerance": "Disk-failure tolerance",
-    "tolerance": "{count} disk(s)",
+    "tolerance": "Tolerates {count} disk failures",
     "afterSync": "For RAID, after full synchronization",
     "beforeOverhead": "before metadata and filesystem overhead",
     "existingCapacity": "Existing volume",
@@ -523,6 +527,10 @@
     "disk_missing_identity": "Identity unconfirmed",
     "disk_duplicate_identity": "Duplicate identity · unavailable",
     "disk_topology_incomplete": "Topology unconfirmed",
-    "disk_unknown_transport": "Connection unconfirmed"
+    "disk_unknown_transport": "Connection unconfirmed",
+    "toleranceOne": "Tolerates 1 disk failure",
+    "toleranceNone": "No disk-failure tolerance",
+    "recoveryHint": "Resume remaining setup; completed disk operations will not be repeated.",
+    "error_recovery_resume_only": "An existing setup is being recovered. Resume the saved job instead of starting a new installation."
   }
 }

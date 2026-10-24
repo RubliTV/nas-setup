@@ -33,6 +33,16 @@ const net=require('node:net');
    assert.equal(await p.locator('.erase-check').count(),count);
    assert.equal(await p.locator('#install').isDisabled(),count>0);
    assert.equal(await p.locator('#erase-review').isVisible(),count>0);
+   if(mode==='raid5')assert.match(await p.locator('#review-summary').innerText(),/Tolerates 1 disk failure/);
+   if(mode==='single'){
+    // A recovery plan preserves completed disk operations and needs no new erase grant.
+    await p.locator('#review-back').click();
+    await p.route('**/api/setup/plan',async route=>{const r=await route.fetch();const body=await r.json();body.destructive=false;body.confirmation_required=false;body.recovery=true;await route.fulfill({response:r,json:body});});
+    await p.locator('#apps-next').click();await p.locator('#screen-review').waitFor({state:'visible'});
+    assert(await p.locator('#erase-review').isHidden());
+    assert.match(await p.locator('#plan-storage').innerText(),/completed disk operations will not be repeated/);
+    assert(await p.locator('#install').isEnabled());
+   }
    await context.close();
   }
   // The real provisioning gate also blocks the existing-volume path until validated.
