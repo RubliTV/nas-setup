@@ -1,6 +1,6 @@
 # NAS Setup: disks, redundancy and shared folders
 
-Status: approved 2026-10-24, including multiple users with per-folder permissions; implementation in progress.
+Status: approved 2026-10-24, including multiple users with per-folder permissions; implementation and disposable OMV validation complete.
 Target: v0.2.0 prerelease in RubliTV/nas-setup. Preserve the published v0.1.0 assets.
 
 ## Intent and agreed requirements
