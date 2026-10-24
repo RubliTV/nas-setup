@@ -196,6 +196,7 @@ def test_storage_only_existing_volume_returns_verified_resources(tmp_path):
     from nas_setup.journal import OperationJournal
     class Adapter(omv.OmvProvisioner):
         def _require_validated(self):pass
+        def _verify_packages(self,raid):pass
         def _digest(self):return 'same-config'
         def _rpc(self,op,params=None):
             assert op=='config_dirty';return False
@@ -415,3 +416,25 @@ def test_degraded_array_can_have_detached_original_member_still_present(tmp_path
     current[2]['reason']='active_holder'
     with pytest.raises(SetupError,match='storage_changed'):
         adapter._verify_array(array,targets,allow_mounted=True,allow_degraded=True)
+
+
+@pytest.mark.parametrize('raid,versions,accepted',[
+    (False,{'openmediavault':'8.5.12-1'},True),
+    (True,{'openmediavault':'8.5.12-1','openmediavault-md':'8.1.6-1'},True),
+    (False,{'openmediavault':'8.5.13-1'},False),
+    (True,{'openmediavault':'8.5.12-1','openmediavault-md':'8.1.7-1'},False),
+    (True,{'openmediavault':'8.5.12-1'},False),
+])
+def test_exact_validated_package_versions_required(tmp_path,raid,versions,accepted):
+    calls=[]
+    def run(args,**kw):
+        calls.append(args)
+        assert args[:3]==['dpkg-query','--show','--showformat=${db:Status-Status}\t${Version}']
+        package=args[3]
+        return SimpleNamespace(returncode=0 if package in versions else 1,
+            stdout='installed\t'+versions.get(package,''))
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path,run=run))
+    if accepted:adapter._verify_packages(raid)
+    else:
+        with pytest.raises(SetupError,match='provisioning_unvalidated'):adapter._verify_packages(raid)
+    if not raid:assert not any(call[3]=='openmediavault-md' for call in calls)

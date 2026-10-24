@@ -15,6 +15,7 @@ from .models import SetupError
 
 ADAPTER_VALIDATED = False
 ADAPTER_VERSION = 'omv8-v02-e0c7b63'
+VALIDATED_PACKAGES = {'openmediavault':'8.5.12-1','openmediavault-md':'8.1.6-1'}
 BRIDGE = Path(__file__).with_name('omv_bridge.php')
 NEW_UUID = 'new'
 SMB_SETTINGS_KEYS = ('enable','workgroup','serverstring','loglevel','usesendfile','aio','timeserver','winssupport','winsserver','homesenable','homesbrowseable','extraoptions')
@@ -150,11 +151,19 @@ class OmvProvisioner:
         raid=selection['storage']['mode'].startswith('raid')
         packages=['acl','samba','e2fsprogs','gdisk']+(['openmediavault-md','mdadm'] if raid else [])
         self.system.run(['apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install',*packages],timeout=1800)
+        self._verify_packages(raid)
         verify_schemas(raid=raid)
         for command in ('lsblk','findmnt','getfacl','getent','id','testparm'):
             self.system.run(['/usr/bin/which',command])
         if raid:self._rpc('md_candidates')
         self._config_digest=self._digest()
+
+    def _verify_packages(self,raid):
+        for package,version in VALIDATED_PACKAGES.items():
+            if package=='openmediavault-md' and not raid:continue
+            installed=self.system.run(['dpkg-query','--show','--showformat=${db:Status-Status}\t${Version}',package],check=False)
+            if installed.returncode or installed.stdout.strip()!='installed\t'+version:
+                raise SetupError('provisioning_unvalidated')
 
     def _preflight_conflicts(self,selection):
         for user in selection['users']:
@@ -541,6 +550,7 @@ class OmvProvisioner:
         from .setup_models import SetupSelection
         selected=SetupSelection.model_validate(selection).model_dump()
         if selected!=plan.get('selection'):raise SetupError('storage_changed')
+        self._verify_packages(selected['storage']['mode'].startswith('raid'))
         self._start_context(journal)
         owner=journal.perform('adapter.owner',lambda:{'id':uuid.uuid4().hex})['id']
         storage=selected['storage'];targets=plan.get('targets',[]);md=None
