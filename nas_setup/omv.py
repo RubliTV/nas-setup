@@ -146,6 +146,7 @@ class OmvProvisioner:
         if selection!=plan.get('selection'):raise SetupError('storage_changed')
         if not self.system.inventory().get('supported'):raise SetupError('unsupported_host')
         if self._rpc('config_dirty',{'modules':[]}):raise SetupError('omv_configuration_changed')
+        self._preflight_conflicts(selection)
         raid=selection['storage']['mode'].startswith('raid')
         packages=['acl','samba','e2fsprogs','gdisk']+(['openmediavault-md','mdadm'] if raid else [])
         self.system.run(['apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install',*packages],timeout=1800)
@@ -154,6 +155,22 @@ class OmvProvisioner:
             self.system.run(['/usr/bin/which',command])
         if raid:self._rpc('md_candidates')
         self._config_digest=self._digest()
+
+    def _preflight_conflicts(self,selection):
+        for user in selection['users']:
+            result=self.system.run(['getent','passwd',user['name']],check=False)
+            if result.returncode==0:raise SetupError('existing_installation')
+            if result.returncode!=2:raise SetupError('command_failed')
+        if not selection['shares']:return
+        existing=self._db('conf.system.sharedfolder')
+        if any(s['name'].casefold()==e['name'].casefold() for s in selection['shares'] for e in existing):
+            raise SetupError('existing_installation')
+        if selection['storage']['mode']=='existing':
+            volume=self._mounted(selection['storage']['volume'])
+            for share in selection['shares']:
+                relative='nas-'+(share['folder'] if share['folder']!='custom' else hashlib.sha256(share['name'].encode()).hexdigest()[:16])
+                safe_share_path(volume['path'],relative,must_be_new=True)
+        if self._rpc('smb_settings_get').get('extraoptions','').strip():raise SetupError('smb_configuration_conflict')
 
     def _check_target(self,expected,blank=False):
         _,disks=self._discover()
@@ -197,8 +214,9 @@ class OmvProvisioner:
     def _user(self,name,password,owner,journal):
         key='user.'+name
         def create():
-            if self.system.run(['getent','passwd',name],check=False).returncode==0:
-                raise SetupError('existing_installation')
+            lookup=self.system.run(['getent','passwd',name],check=False)
+            if lookup.returncode==0:raise SetupError('existing_installation')
+            if lookup.returncode!=2:raise SetupError('command_failed')
             if not password or '\n' in password or '\r' in password:raise SetupError('credentials_required')
             self._mutate('user_set',{'name':name,'groups':[],'shell':'/usr/sbin/nologin','password':password,
                 'email':'','comment':'nas-setup-'+owner,'disallowusermod':True,'sshpubkeys':[]})
@@ -236,12 +254,14 @@ class OmvProvisioner:
         if not md:
             if resources.get('targets'):self._verify_single(resources['targets'],resources['volume'],volume['path'])
             return {'state':'healthy','progress':100,'tolerance':0}
-        self._verify_array(md,resources.get('targets',[]),allow_mounted=True)
         base=Path('/sys/class/block')/Path(md['devicefile']).name/'md'
         try:
-            return raid_health((base/'sync_action').read_text().strip(),(base/'degraded').read_text().strip(),
+            degraded=(base/'degraded').read_text().strip()
+            health=raid_health((base/'sync_action').read_text().strip(),degraded,
                 (base/'sync_completed').read_text().strip(),resources['raid']['tolerance'])
-        except OSError:return {'state':'degraded','progress':0,'tolerance':resources['raid']['tolerance']}
+        except OSError:degraded='1';health={'state':'degraded','progress':0,'tolerance':resources['raid']['tolerance']}
+        self._verify_array(md,resources.get('targets',[]),allow_mounted=True,allow_degraded=degraded!='0')
+        return health
 
     def _check_target_identity(self,expected,allowed_reasons=(None,)):
         _,disks=self._discover();matches=[d for d in disks if d['id']==expected['id']]
@@ -422,7 +442,7 @@ class OmvProvisioner:
         shared['smb_uuid']=smb['uuid']
         return self._verify_share(shared,volume)
 
-    def _verify_array(self,expected,targets,allow_mounted=False):
+    def _verify_array(self,expected,targets,allow_mounted=False,allow_degraded=False):
         arrays=[a for a in self._rpc('md_list') if a['uuid']==expected['uuid']]
         if len(arrays)!=1:raise SetupError('storage_changed')
         array=arrays[0]
@@ -430,7 +450,7 @@ class OmvProvisioner:
             raise SetupError('storage_changed')
         members={str(Path(t['id']).resolve()) for t in targets}
         actual={str(Path(d).resolve()) for d in array['devices']}
-        if members!=actual:raise SetupError('storage_changed')
+        if (not allow_degraded and members!=actual) or not actual.issubset(members):raise SetupError('storage_changed')
         tree,disks=self._discover();current={d['id']:d for d in disks}
         array_path=str(Path(array['devicefile']).resolve())
         def inspect(node):
@@ -442,6 +462,7 @@ class OmvProvisioner:
             for child in node.get('children',[]):inspect(child)
         for target in targets:
             d=current.get(target['id'])
+            if not d and allow_degraded:continue
             if not d or d['reason'] not in ('active_holder','mounted'):raise SetupError('storage_changed')
             for key in ('serial','size_bytes','transport','logical_sector','physical_sector'):
                 if d.get(key)!=target.get(key):raise SetupError('storage_changed')

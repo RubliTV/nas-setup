@@ -346,3 +346,38 @@ def test_recovery_review_rejects_unknown_dispatch(tmp_path):
     adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
     with pytest.raises(SetupError,match='recovery_required'):
         adapter.review_recovery({'selection':{'storage':{'mode':'single'}},'targets':[{'id':'/dev/disk/by-id/data'}]},journal)
+
+
+def test_degraded_array_verification_allows_only_missing_owned_members(tmp_path):
+    tree,ids=topology();members=[dict(omv.classify_disks(tree,ids,{})[1],id='/dev/sdb')]
+    members.append(dict(members[0],id='/dev/sdc',serial='sdc-serial',device='/dev/sdc',devicefile='/dev/sdc'))
+    array={'uuid':'md-owned','devicefile':'/dev/md9','level':'raid1','numdevices':2,'devices':['/dev/sdb']}
+    tree['blockdevices'][1]['children']=[{'name':'/dev/md9','type':'raid1','mountpoints':['/srv/data']}]
+    current=omv.classify_disks(tree,ids,{'/dev/sdb':['md9']});current[1]['id']='/dev/sdb'
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
+    adapter._discover=lambda:(tree,current)
+    adapter._rpc=lambda *a: [array]
+    expected=dict(array,devices=['/dev/sdb','/dev/sdc'])
+    adapter._verify_array(expected,members,allow_mounted=True,allow_degraded=True)
+    array['devices']=['/dev/sdb','/dev/foreign']
+    with pytest.raises(SetupError,match='storage_changed'):
+        adapter._verify_array(expected,members,allow_mounted=True,allow_degraded=True)
+
+
+def test_preflight_rejects_existing_user_before_storage_mutations(tmp_path):
+    class System:
+        state=tmp_path
+        def run(self,args,**kw):
+            assert args==['getent','passwd','ana']
+            return SimpleNamespace(returncode=0,stdout='ana:x:1000:100:Existing:/home/ana:/bin/bash')
+    adapter=omv.OmvProvisioner(System())
+    adapter._mutate=lambda *a:pytest.fail('preflight may not mutate')
+    with pytest.raises(SetupError,match='existing_installation'):
+        adapter._preflight_conflicts({'users':[{'name':'ana'}],'shares':[],'storage':{'mode':'single'}})
+
+
+def test_preflight_rejects_global_share_conflict_before_erasure(tmp_path):
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
+    adapter._db=lambda model:[{'name':'FILES','mntentref':'other-mount','reldirpath':'unrelated/'}]
+    with pytest.raises(SetupError,match='existing_installation'):
+        adapter._preflight_conflicts({'users':[],'shares':[{'name':'Files','folder':'files'}],'storage':{'mode':'raid1'}})
