@@ -122,15 +122,15 @@ and unmounted before starting RAID cases.
 | Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Pending |
 | Single disk | EXT4 create, UUID, registered OMV mount and database objects | Passed |
 | Existing-volume reuse | Reuse registered mounted filesystem without mutation RPCs | Passed |
-| RAID 1 | Two exact members, synchronization, healthy status | Pending |
+| RAID 1 | Two exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 1 |
 | RAID 5 | Three exact members, synchronization, healthy status | Pending |
 | RAID 6 | Four exact members, synchronization, healthy status | Pending |
-| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk; RAID cases pending |
-| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk; RAID cases pending |
+| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk and RAID 1; RAID 5/6 pending |
+| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk and RAID 1; RAID 5/6 pending |
 | Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk; RAID cases pending |
 | Degraded array | Missing member detected; protected completion blocked | Pending |
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
-| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk |
+| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1 |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
 
 Each storage layout requires a fresh disposable disk set or documented rollback

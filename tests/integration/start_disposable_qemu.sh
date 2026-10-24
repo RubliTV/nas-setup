@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 cd /tmp/nas-v02-vm
+case "$#:$*" in
+  0:) set -- ;;
+  1:--with-seed) set -- -drive if=none,id=seed,file=/tmp/nas-v02-vm/seed.iso,format=raw,readonly=on -device virtio-blk-pci,drive=seed ;;
+  *) echo 'Usage: start_disposable_qemu.sh [--with-seed]' >&2; exit 2 ;;
+esac
 exec /opt/homebrew/bin/qemu-system-x86_64 \
  -name nas-v02-disposable -machine q35 -accel tcg,thread=single -cpu max,tsc=off \
  -smp 1 -m 4096 -display none -daemonize -pidfile /tmp/nas-v02-vm/qemu.pid \
@@ -17,4 +22,5 @@ exec /opt/homebrew/bin/qemu-system-x86_64 \
  -drive if=none,id=data3,file=/tmp/nas-v02-vm/data3.qcow2,format=qcow2 \
  -device ide-hd,drive=data3,bus=ide.2,serial=NASV02DATA3 \
  -drive if=none,id=data4,file=/tmp/nas-v02-vm/data4.qcow2,format=qcow2 \
- -device ide-hd,drive=data4,bus=ide.3,serial=NASV02DATA4
+ -device ide-hd,drive=data4,bus=ide.3,serial=NASV02DATA4 \
+ "$@"
