@@ -37,6 +37,16 @@ It requires Debian 13 amd64, installed OMV and MD packages, the separate OS disk
 and four untouched SATA data disks. Its `provisioning_certified` value stays false:
 a read-only baseline never certifies creation, permissions, or recovery.
 
+After the guest installation, create the isolated test environment and marker
+inside the guest (the wheel and scripts must already be copied there):
+
+```sh
+python3 -m venv /root/nas-venv
+/root/nas-venv/bin/pip install /root/nas_setup-0.2.0-py3-none-any.whl
+install -m 600 /dev/null /root/NAS_SETUP_DISPOSABLE_VM
+python3 /root/probe_omv_environment.py > /root/baseline-probe.json
+```
+
 Actual adapter tests must retain the production gate, use an explicit test-only
 subclass inside this VM, and execute all pending rows in the dated validation
 record. Before destructive tests, save an offline OS/data snapshot or make fresh

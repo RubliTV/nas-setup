@@ -1,6 +1,6 @@
 # v0.2 disposable OMV validation
 
-Status: single-disk and RAID 1 live cases passed; remaining matrix cases pending; **not a provisioning certification**.
+Status: single-disk, RAID 1 and RAID 5 live cases passed; remaining matrix cases pending; **not a provisioning certification**.
 
 The production adapter gate must remain disabled until the actual destructive
 paths pass the matrix below. Python mocks, schema inspection, browser simulation,
@@ -120,6 +120,12 @@ Finish with `job_active`, and never called the system completion hook. This
 separate check passed; see `raid1-finish-pass.log`. The VM was restored to blank
 data disks before the next layout.
 
+RAID 5 passed the same live matrix using three exact virtual members, then an
+actual reboot preserved healthy status, file contents and denied access. Removing
+the third member produced degraded status and the actual engine refused Finish.
+Its `raid5-*` evidence files are preserved. A verified clean restore followed
+before RAID 6.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
@@ -132,14 +138,14 @@ data disks before the next layout.
 | Single disk | EXT4 create, UUID, registered OMV mount and database objects | Passed |
 | Existing-volume reuse | Reuse registered mounted filesystem without mutation RPCs | Passed |
 | RAID 1 | Two exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 1 |
-| RAID 5 | Three exact members, synchronization, healthy status | Pending |
+| RAID 5 | Three exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 1 |
 | RAID 6 | Four exact members, synchronization, healthy status | Pending |
-| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk and RAID 1; RAID 5/6 pending |
-| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk and RAID 1; RAID 5/6 pending |
-| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk and RAID 1; RAID 5/6 pending |
-| Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1, including actual engine Finish rejection |
+| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
+| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
+| Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
+| Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1 and RAID 5, including actual engine Finish rejection |
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
-| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1 |
+| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk, RAID 1 and RAID 5 |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
 
 Each storage layout requires a fresh disposable disk set or documented rollback
