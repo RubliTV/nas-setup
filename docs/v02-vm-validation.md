@@ -126,6 +126,16 @@ the third member produced degraded status and the actual engine refused Finish.
 Its `raid5-*` evidence files are preserved. A verified clean restore followed
 before RAID 6.
 
+The first RAID 6 attempt created the array, filesystem and mount registration,
+then its configuration-apply RPC client timed out after the installed default
+180 seconds. The durable journal records dispatch at 21:30:16 UTC; the client
+exited at 21:33:17 while OMV continued processing and reported a broken pipe at
+21:34:28. No users had been created. This attempt failed and is retained in
+`raid6-attempt1-failed.log` and `raid6-apply-diagnostic.txt`. The bridge now gives
+only configuration apply a 1740-second receive timeout, below the Python
+1800-second bound. A clean snapshot restore and blank-disk check preceded retry;
+the timeout change alone does not establish a passing RAID 6 result.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
