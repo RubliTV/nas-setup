@@ -6,12 +6,13 @@
  <a class="brand" href="/"><span class="brand-symbol">▤</span> NAS<span>setup</span></a>
  <div class="sidebar-caption" data-i18n="sidebarCaption"></div>
  <nav aria-label="Setup steps"><ol id="navigation">
-  <li data-step="apps"><span>01</span><div data-i18n="navApps"></div></li>
-  <li data-step="storage"><span>02</span><div data-i18n="navStorage"></div></li>
-  <li data-step="review"><span>03</span><div data-i18n="navReview"></div></li>
-  <li data-step="progress"><span>04</span><div data-i18n="navInstall"></div></li>
+  <li data-step="storage"><span>01</span><div data-i18n="navStorage"></div></li>
+  <li data-step="shares"><span>02</span><div data-i18n="navShares"></div></li>
+  <li data-step="apps"><span>03</span><div data-i18n="navApps"></div></li>
+  <li data-step="review"><span>04</span><div data-i18n="navReview"></div></li>
+  <li data-step="progress"><span>05</span><div data-i18n="navInstall"></div></li>
  </ol></nav>
- <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.1</span></div>
+ <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.2</span></div>
 </aside>
 <div class="workspace">
  <header><div class="breadcrumb">NAS Setup <span>/</span> <span data-i18n="setup"></span></div><div class="languages" aria-label="Language"><button id="lang-pt" type="button">Português</button><button id="lang-en" type="button">English</button></div></header>
@@ -24,43 +25,50 @@
   </section>
   <section id="screen-apps" class="screen" hidden>
    <div class="eyebrow" data-i18n="appsEyebrow"></div><h1 data-i18n="appsTitle"></h1><p class="lead" data-i18n="appsDescription"></p>
-   <div class="machine panel"><div class="device-icon">▤</div><div class="machine-name"><strong id="hostname"></strong><span id="host-os"></span></div><div class="machine-stat"><span data-i18n="processor"></span><strong id="cpu"></strong></div><div class="machine-stat"><span data-i18n="memory"></span><strong id="memory"></strong></div><span id="host-badge" class="badge"></span></div>
    <div class="section-label"><h2 data-i18n="appsSection"></h2><span data-i18n="optional"></span></div>
    <div class="app-grid">
-    <label class="app-card" data-app="tailscale"><div class="app-top"><span class="app-icon tailscale">⠿</span><input type="checkbox" value="tailscale" aria-label="Tailscale" checked></div><h3>Tailscale</h3><span class="tag" data-i18n="remoteTag"></span><p data-i18n="tailscaleDescription"></p><div class="app-foot"><span class="small-dot"></span><span data-i18n="lightweight"></span></div></label>
+    <label class="app-card" data-app="tailscale"><div class="app-top"><span class="app-icon tailscale">⠿</span><input type="checkbox" value="tailscale" aria-label="Tailscale"></div><h3>Tailscale</h3><span class="tag" data-i18n="remoteTag"></span><p data-i18n="tailscaleDescription"></p><div class="app-foot"><span class="small-dot"></span><span data-i18n="lightweight"></span></div></label>
     <label class="app-card" data-app="immich"><div class="app-top"><span class="app-icon immich">✳</span><input type="checkbox" value="immich" aria-label="Immich"></div><h3>Immich</h3><span class="tag" data-i18n="photosTag"></span><p data-i18n="immichDescription"></p><div class="app-foot"><span class="small-dot amber"></span><span data-i18n="immichMemory"></span></div></label>
     <label class="app-card" data-app="jellyfin"><div class="app-top"><span class="app-icon jellyfin">▷</span><input type="checkbox" value="jellyfin" aria-label="Jellyfin"></div><h3>Jellyfin</h3><span class="tag" data-i18n="mediaTag"></span><p data-i18n="jellyfinDescription"></p><div class="app-foot"><span class="small-dot"></span><span data-i18n="directPlayback"></span></div></label>
    </div>
    <div class="note"><span>ⓘ</span><p data-i18n="dockerIncluded"></p></div>
-   <div class="actions"><span id="selection-count"></span><button id="apps-next" class="primary" data-i18n="continue"></button></div>
+   <div class="panel app-settings"><div id="database-options" hidden><p data-i18n="databaseProtected"></p><label class="switch-row"><input id="machine-learning" type="checkbox"><span><strong data-i18n="machineLearning"></strong><small id="ml-hint"></small></span></label></div><label for="timezone" data-i18n="timezone"></label><input id="timezone" value="America/Sao_Paulo" autocomplete="off"><p class="hint" data-i18n="timezoneHint"></p></div><div class="actions"><button class="secondary back" data-target="shares" data-i18n="back"></button><span id="selection-count"></span><button id="apps-next" class="primary" data-i18n="reviewButton"></button></div>
   </section>
   <section id="screen-storage" class="screen" hidden>
    <div class="eyebrow" data-i18n="storageEyebrow"></div><h1 data-i18n="storageTitle"></h1><p class="lead" data-i18n="storageDescription"></p>
-   <div class="panel storage-panel"><h2 data-i18n="existingVolumes"></h2><label for="volume" data-i18n="filesMedia"></label><select id="volume"></select><p class="hint" data-i18n="storageHint"></p>
-    <div id="database-options" hidden><label for="database-volume" data-i18n="database"></label><select id="database-volume"></select><p class="hint" data-i18n="databaseHint"></p>
-     <label class="switch-row"><input id="machine-learning" type="checkbox"><span><strong data-i18n="machineLearning"></strong><small id="ml-hint"></small></span></label>
-    </div>
-    <label for="timezone" data-i18n="timezone"></label><input id="timezone" value="America/Sao_Paulo" autocomplete="off"><p class="hint" data-i18n="timezoneHint"></p>
+   <div class="machine panel"><div class="device-icon">▤</div><div class="machine-name"><strong id="hostname"></strong><span id="host-os"></span></div><div class="machine-stat"><span data-i18n="processor"></span><strong id="cpu"></strong></div><div class="machine-stat"><span data-i18n="memory"></span><strong id="memory"></strong></div><span id="host-badge" class="badge"></span></div>
+   <div id="provision-gate" class="note warning" hidden data-i18n="provisionGate"></div>
+   <div class="section-label"><h2 data-i18n="detectedDisks"></h2><span data-i18n="identifyDisks"></span></div>
+   <div id="disk-list" class="disk-grid"></div>
+   <div class="panel storage-panel"><label for="storage-mode" data-i18n="protectionLabel"></label><select id="storage-mode"><option value="raid1" data-i18n="mode_raid1"></option><option value="single" data-i18n="mode_single"></option><option value="raid5" data-i18n="mode_raid5"></option><option value="raid6" data-i18n="mode_raid6"></option><option value="existing" data-i18n="mode_existing"></option></select>
+    <div id="existing-options" hidden><label for="volume" data-i18n="existingVolumes"></label><select id="volume"></select><p class="hint" data-i18n="reuseHint"></p></div>
+    <p id="layout-hint" class="hint"></p><div class="capacity-summary"><div><span data-i18n="usableCapacity"></span><strong id="capacity-value"></strong><small id="capacity-binary"></small></div><div><span data-i18n="diskTolerance"></span><strong id="tolerance-value"></strong><small data-i18n="afterSync"></small></div></div><p id="mixed-capacity" class="hint" hidden data-i18n="mixedCapacity"></p>
    </div>
-   <div class="note"><span>ⓘ</span><p data-i18n="storageOmv"></p></div>
-   <div class="actions"><button class="secondary back" data-target="apps" data-i18n="back"></button><button id="storage-next" class="primary" data-i18n="reviewButton"></button></div>
+   <div class="note"><span>ⓘ</span><p data-i18n="backupReminder"></p></div>
+   <div class="actions"><span data-i18n="noDiskChanges"></span><button id="storage-next" class="primary" data-i18n="continue"></button></div>
+  </section>
+  <section id="screen-shares" class="screen" hidden>
+   <div class="eyebrow" data-i18n="sharesEyebrow"></div><h1 data-i18n="sharesTitle"></h1><p class="lead" data-i18n="sharesDescription"></p>
+   <div class="panel"><div class="section-label"><h2 data-i18n="fileUsers"></h2><button id="add-user" class="secondary" data-i18n="addUser"></button></div><div id="users-list"></div><p class="hint" data-i18n="userHint"></p></div>
+   <div class="panel shares-panel"><div class="section-label"><h2 data-i18n="sharedFolders"></h2><button id="add-share" class="secondary" data-i18n="addShare"></button></div><div id="shares-list"></div><p class="hint" data-i18n="sharesHint"></p></div>
+   <div class="actions"><button class="secondary back" data-target="storage" data-i18n="back"></button><button id="shares-next" class="primary" data-i18n="continue"></button></div>
   </section>
   <section id="screen-review" class="screen" hidden>
    <div class="eyebrow" data-i18n="reviewEyebrow"></div><h1 data-i18n="reviewTitle"></h1><p class="lead" data-i18n="reviewDescription"></p>
-   <div class="panel"><h2 data-i18n="installationPlan"></h2><div id="plan-list"></div><div id="plan-storage" class="plan-storage"></div></div>
-   <div id="warnings"></div><div class="note"><span>↻</span><p data-i18n="resumeHint"></p></div>
+   <div class="panel"><h2 data-i18n="installationPlan"></h2><div id="review-summary"></div><div id="plan-list"></div><div id="plan-storage" class="plan-storage"></div></div>
+   <div id="warnings"></div><div id="erase-review" class="panel erase-panel" hidden><h2 data-i18n="eraseTitle"></h2><p data-i18n="eraseDescription"></p><div id="erase-targets"></div><label for="erase-confirmation" data-i18n="typeErase"></label><input id="erase-confirmation" autocomplete="off" spellcheck="false"><p class="hint" data-i18n="eraseExpiry"></p></div><div class="note"><span>↻</span><p data-i18n="resumeHint"></p></div>
    <div class="actions"><button class="secondary back" id="review-back" data-target="apps" data-i18n="back"></button><button id="install" class="primary" data-i18n="installButton"></button></div>
   </section>
   <section id="screen-progress" class="screen" hidden>
    <div class="eyebrow" data-i18n="progressEyebrow"></div><h1 id="progress-title"></h1><p class="lead" id="progress-description"></p>
    <div class="panel progress-panel"><div class="progress-top"><strong id="progress-caption"></strong><span id="progress-percent"></span></div><progress id="progress-bar" max="100" value="0"></progress><ol id="job-steps" class="job-steps"></ol></div>
    <div id="tailscale-pair" class="panel" hidden><h2 data-i18n="tailscalePair"></h2><p data-i18n="tailscalePairHint"></p><a id="tailscale-link" class="primary" target="_blank" rel="noopener noreferrer" data-i18n="tailscaleLogin" hidden></a><button id="check-tailscale" class="secondary" data-i18n="checkAgain"></button></div>
-   <div id="results" class="result-grid"></div>
+   <div id="raid-status" class="note" hidden role="status"></div><div id="results" class="result-grid"></div><div id="resume-credentials" class="panel" hidden><h2 data-i18n="resumeCredentials"></h2><p class="hint" data-i18n="resumeCredentialsHint"></p><div id="resume-passwords"></div></div>
    <div id="job-error" class="error" hidden></div>
    <div class="actions"><span class="muted" data-i18n="closeBrowser"></span><div class="action-buttons"><button id="pause" class="secondary" data-i18n="pause"></button><button id="resume" class="primary" data-i18n="resume" hidden></button><button id="finish" class="primary" data-i18n="finish" hidden></button></div></div>
   </section>
   <section id="screen-finished" class="screen" hidden><div class="eyebrow" data-i18n="finishedEyebrow"></div><h1 data-i18n="finishedTitle"></h1><p class="lead" data-i18n="finishedDescription"></p><div class="panel"><code>sudo nas-setup reopen</code></div></section>
-  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.1.0</span></footer>
+  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.2.0</span></footer>
  </main>
 </div>
 </body></html>
