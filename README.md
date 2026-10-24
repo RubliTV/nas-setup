@@ -59,7 +59,7 @@ The bootstrap checks the supported OS before installing dependencies. It prints 
 The GitHub test release is intended for an OMV test machine with disposable data. Log in to the NAS as root and run:
 
 ```sh
-curl -fsSL https://github.com/nicolasumaras/nas-setup/releases/download/v0.1.0/install.sh | bash
+curl -fsSL https://github.com/RubliTV/nas-setup/releases/download/v0.1.0/install.sh | bash
 ```
 
 The helper downloads the versioned archive over HTTPS, verifies its embedded SHA-256 checksum, extracts into a temporary directory, then runs the same bootstrap above. Your Mac does not need to be online. To inspect before executing, download `install.sh` first and read it locally. The helper and archive come from the same publisher; checksums detect corruption, not publisher compromise.
@@ -67,10 +67,10 @@ The helper downloads the versioned archive over HTTPS, verifies its embedded SHA
 For multiple LAN addresses, pass the selected NAS address:
 
 ```sh
-curl -fsSL https://github.com/nicolasumaras/nas-setup/releases/download/v0.1.0/install.sh | bash -s -- --address 192.168.1.50
+curl -fsSL https://github.com/RubliTV/nas-setup/releases/download/v0.1.0/install.sh | bash -s -- --address 192.168.1.50
 ```
 
-Maintainers can build all three release assets with `python3 scripts/build_release.py --repository nicolasumaras/nas-setup`. Upload the generated archive, checksum and `install.sh` together to release `v0.1.0`. Never replace a published version with a different archive.
+Maintainers can build all three release assets with `python3 scripts/build_release.py --repository RubliTV/nas-setup`. Upload the generated archive, checksum and `install.sh` together to release `v0.1.0`. Never replace a published version with a different archive.
 
 ### Finish and reopen
 

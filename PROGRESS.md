@@ -12,3 +12,5 @@ Ruling: This is a new repository without a remote or base branch. Preserve the i
 Limit: No Linux VM runtime or connected NAS is available here. Real OMV package integration, physical J1800 performance, network enrollment and live systemd mount behavior remain explicitly unvalidated.
 
 GitHub distribution: User requested downloads from GitHub and selected personal account nicolasumaras. Add a release-specific HTTPS download helper with an embedded archive checksum, temporary extraction and argument forwarding. Publish v0.1.0 as a prerelease; real OMV validation remains pending. This supersedes the earlier local-only delivery scope.
+
+RubliTV publication: User connected RubliTV and authorized publishing there. README and release helper now target RubliTV/nas-setup; preserve the earlier personal repository.
