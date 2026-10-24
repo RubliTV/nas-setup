@@ -1,10 +1,13 @@
 # v0.2 disposable OMV validation
 
-Status: all four storage layout creation/permission cases passed; remaining recovery cases pending; **not a provisioning certification**.
+Status: the disposable VM adapter matrix passed on the exact OMV/MD versions below. Packaged HTTPS installer validation is pending.
 
-The production adapter gate must remain disabled until the actual destructive
-paths pass the matrix below. Python mocks, schema inspection, browser simulation,
-and an operating-system boot do not establish this result.
+The actual destructive paths passed the matrix below using disposable virtual
+disks and a test-only gate override. Production gate enablement is a separate
+release decision tied to the exact tested package contract. Python mocks, schema
+inspection, browser simulation, and an operating-system boot alone do not
+establish this result. Physical J1800 hardware and third-party app installation
+were not exercised by this VM matrix.
 
 ## Environment
 
@@ -152,6 +155,15 @@ A controlled MD consistency check on the healthy RAID 6 array exposed actual
 for synchronization and refused Finish; the harness restored `sync_action` to
 `idle` in its cleanup. See `raid6-syncing-pass.log`.
 
+The lost-format fault injected a missing response after one actual filesystem
+creation dispatch. A fresh adapter with a reopened durable journal required
+recovery and did not issue another format. After EXT4 creation finished, an
+actual guest reboot changed the boot ID. A separate Python process then reopened
+the persisted journal, replaced all mutation calls with a failing guard, and
+again required recovery with zero mutations. The filesystem UUID was unchanged.
+See `lost-format-pass.log` and `lost-format-reboot-pass.log`. This is an injected
+response-loss test, not a simulation of every power-loss timing.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
@@ -173,7 +185,7 @@ for synchronization and refused Finish; the harness restored `sync_action` to
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
 | Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1/5/6 |
 | Synchronizing array | Real MD operation reports incomplete progress; actual engine blocks Finish | Passed on RAID 6; consistency check with idle cleanup |
-| Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
+| Interrupted mutation | Lost response/restart never triggers another wipe/format | Passed; injected loss, fresh adapter, then actual reboot and separate-process journal recovery with zero mutations |
 
 Each storage layout requires a fresh disposable disk set or documented rollback
 to a known VM snapshot. Never reclassify a failed operation as successful merely
