@@ -60,7 +60,12 @@ automatically, and the helper only connects to the fixed temporary monitor socke
 
 `exercise_omv_adapter.py` is the destructive live matrix driver. It accepts
 `single`, `raid1`, `raid5`, `raid6`, `lost-format`, `verify` (reboot check),
-`existing`, `conflicts`, and `degraded`.
+`existing`, `conflicts`, `degraded`, `finish-degraded`, `syncing`, and
+`lost-format-resume`. After a layout passes, `verify` requires an actual guest
+reboot with its state retained. `syncing` starts an MD consistency check and
+asserts the real engine blocks Finish while synchronization remains active.
+`lost-format-resume` must run in a new process after an actual reboot of the
+failed-format case, without restoring the clean snapshot first.
 Run only inside the named guest after the clean snapshot, using the installed
 test venv. It checks a root-owned disposable marker, exactly five unique
 synthetic disk serials, QEMU SATA models and sizes, and OS exclusion before any

@@ -1,6 +1,6 @@
 # v0.2 disposable OMV validation
 
-Status: single-disk, RAID 1 and RAID 5 live cases passed; remaining matrix cases pending; **not a provisioning certification**.
+Status: all four storage layout creation/permission cases passed; remaining recovery cases pending; **not a provisioning certification**.
 
 The production adapter gate must remain disabled until the actual destructive
 paths pass the matrix below. Python mocks, schema inspection, browser simulation,
@@ -136,26 +136,33 @@ only configuration apply a 1740-second receive timeout, below the Python
 1800-second bound. A clean snapshot restore and blank-disk check preceded retry;
 the timeout change alone does not establish a passing RAID 6 result.
 
+The corrected RAID 6 retry passed with all four exact members, healthy 100%
+status and two-disk failure tolerance. It completed the actual permissions, SMB
+content/denial, POSIX denial and zero-mutation journal replay assertions. See
+`raid6-pass.log` and `raid6-resources.json`. The harness checks OS exclusion
+before every mode, and the RAID 6 resource record identifies all four synthetic
+data disks as eligible. Reboot and fault results remain separate checks.
+
 ## Required live matrix
 
 | Check | Evidence required | Result |
 |---|---|---|
 | Platform | Debian 13, amd64, exact OMV/MD package versions | Passed; OMV 8.5.12-1 / MD 8.1.6-1 |
 | RPC schema files | All eight installed schema hashes equal adapter constants | Passed (see `tests/integration/evidence/schema-check.txt`) |
-| RPC runtime | Bridge dispatch and actual operation response shapes | Passed for single disk/RAID 1 operations; remaining layouts pending |
+| RPC runtime | Bridge dispatch and actual operation response shapes | Passed for single disk and RAID 1/5/6 actual operations |
 | Guest disk baseline | Distinct OS root ancestry; four unique unmounted SATA disks | Passed (baseline JSON) |
-| Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Pending |
+| Adapter inventory exclusion | Real adapter marks OS excluded and exact four data disks eligible | Passed; harness OS guard and all four eligible targets in RAID 6 resource evidence |
 | Single disk | EXT4 create, UUID, registered OMV mount and database objects | Passed |
 | Existing-volume reuse | Reuse registered mounted filesystem without mutation RPCs | Passed |
 | RAID 1 | Two exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 1 |
 | RAID 5 | Three exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 1 |
-| RAID 6 | Four exact members, synchronization, healthy status | Pending |
-| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
-| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
+| RAID 6 | Four exact members, synchronization, healthy status | Passed; healthy 100%, tolerance 2 |
+| SMB matrix | Separate users with rw, ro and none; actual SMB write/read/deny | Passed on single disk and RAID 1/5/6 |
+| Filesystem ACL | No-access user cannot traverse/read another user's share locally | Passed on single disk and RAID 1/5/6 |
 | Reboot | Exact mounts, members, shares, permissions and ownership persist | Passed on single disk, RAID 1 and RAID 5; RAID 6 pending |
 | Degraded array | Missing member detected; protected completion blocked | Passed on RAID 1 and RAID 5, including actual engine Finish rejection |
 | Conflicts | Existing unrelated username/share and pending OMV changes rejected before mutations | Passed |
-| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk, RAID 1 and RAID 5 |
+| Completed journal replay | Re-entering completed provisioning invokes zero mutation RPCs | Passed on single disk and RAID 1/5/6 |
 | Interrupted mutation | Lost response/restart never triggers another wipe/format | Pending |
 
 Each storage layout requires a fresh disposable disk set or documented rollback

@@ -1,0 +1,35 @@
+TARGETS [('NASV02DATA1', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA1'), ('NASV02DATA2', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA2'), ('NASV02DATA3', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA3'), ('NASV02DATA4', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA4')]
+MUTATION disk_wipe
+MUTATION disk_wipe
+MUTATION disk_wipe
+MUTATION disk_wipe
+MUTATION md_create
+MUTATION filesystem_create
+MUTATION mount_set
+MUTATION config_apply
+MUTATION user_set
+MUTATION user_set
+MUTATION user_set
+MUTATION share_set
+MUTATION privileges_set
+MUTATION acl_set
+MUTATION smb_share_set
+MUTATION share_set
+MUTATION privileges_set
+MUTATION acl_set
+MUTATION smb_share_set
+MUTATION smb_settings_set
+MUTATION config_apply
+RESOURCES {"volume": "3adcdf19-4456-4827-ab17-482703be51dd", "mount_path": "/srv/dev-disk-by-uuid-3adcdf19-4456-4827-ab17-482703be51dd", "mount_uuid": "30a5b681-af81-485a-b38f-f84351c8f92e", "owner": "83bdb799c5204b0cada08202548d8bb2", "users": [{"name": "nasana", "uid": 1000}, {"name": "nasbob", "uid": 1001}, {"name": "naseve", "uid": 1002}], "shares": [{"name": "Files", "folder": "files", "relative_path": "nas-files", "path": "/srv/dev-disk-by-uuid-3adcdf19-4456-4827-ab17-482703be51dd/nas-files", "permissions": {"nasana": "rw", "nasbob": "ro", "naseve": "none"}, "comment": "nas-setup-83bdb799c5204b0cada08202548d8bb2", "uuid": "24b8f77d-b6a3-41b4-87b2-4bf71ac7ca1c", "smb_uuid": "1a172416-a1c4-4d32-a813-9bc805050a5f"}, {"name": "Media", "folder": "media", "relative_path": "nas-media", "path": "/srv/dev-disk-by-uuid-3adcdf19-4456-4827-ab17-482703be51dd/nas-media", "permissions": {"nasana": "none", "nasbob": "rw", "naseve": "ro"}, "comment": "nas-setup-83bdb799c5204b0cada08202548d8bb2", "uuid": "319cb36a-fbdb-4e7c-a95c-3fd2cfd98125", "smb_uuid": "23be0ac0-1e39-4d42-8c05-91576e3fd60a"}], "targets": [{"topology": "d423d445879e75884bd58d35f688bd9092385238d28cabff3840dd1bb7a91c97", "id": "/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA1", "device": "/dev/sda", "devicefile": "/dev/sda", "model": "QEMU HARDDISK", "serial": "NASV02DATA1", "size_bytes": 17179869184, "transport": "sata", "eligible": true, "reason": null, "signatures": [], "logical_sector": 512, "physical_sector": 512}, {"topology": "4882902d3836d41f8f597d19c4e3828a249a9667d07acfb08f7873c889a8aabe", "id": "/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA2", "device": "/dev/sdb", "devicefile": "/dev/sdb", "model": "QEMU HARDDISK", "serial": "NASV02DATA2", "size_bytes": 17179869184, "transport": "sata", "eligible": true, "reason": null, "signatures": [], "logical_sector": 512, "physical_sector": 512}, {"topology": "c3ba8f3c20c56cb86639cf008ff1d3d86cad22a76424275fc678831d10d80e6c", "id": "/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA3", "device": "/dev/sdc", "devicefile": "/dev/sdc", "model": "QEMU HARDDISK", "serial": "NASV02DATA3", "size_bytes": 17179869184, "transport": "sata", "eligible": true, "reason": null, "signatures": [], "logical_sector": 512, "physical_sector": 512}, {"topology": "195111c6a4a4daad8504cfc81c3c195d6ea0afba0a8a5cc5306cc75a8b1205de", "id": "/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA4", "device": "/dev/sdd", "devicefile": "/dev/sdd", "model": "QEMU HARDDISK", "serial": "NASV02DATA4", "size_bytes": 17179869184, "transport": "sata", "eligible": true, "reason": null, "signatures": [], "logical_sector": 512, "physical_sector": 512}], "md": {"uuid": "243f92e8:ee046d41:8e22a8db:7fa47a5e", "devicefile": "/dev/md0", "level": "raid6", "devices": ["/dev/sda", "/dev/sdb", "/dev/sdc", "/dev/sdd"], "numdevices": 4}, "media_path": "/srv/dev-disk-by-uuid-3adcdf19-4456-4827-ab17-482703be51dd/nas-media", "raid": {"state": "healthy", "progress": 100, "tolerance": 2}}
+VERIFIED COMPLETED JOURNAL NO MUTATIONS
+SMB nasana Files success
+SMB nasbob Files success
+SMB nasbob Files denied
+SMB naseve Files denied
+SMB nasbob Media success
+SMB naseve Media success
+SMB naseve Media denied
+SMB nasana Media denied
+VERIFIED POSIX CROSS-USER DENIALS
+RAID STATUS {"state": "healthy", "progress": 100, "tolerance": 2}
+MODE PASS raid6
