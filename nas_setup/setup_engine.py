@@ -22,8 +22,10 @@ class SetupStart(StrictModel):
     @field_validator('passwords')
     @classmethod
     def password_lengths(cls,values):
-        if any(not 12<=len(value.get_secret_value())<=128 for value in values.values()):
-            raise ValueError('password must contain 12 to 128 characters')
+        for value in values.values():
+            secret=value.get_secret_value()
+            if not 12<=len(secret)<=128 or any(c in secret for c in ('\n','\r','\0')):
+                raise ValueError('password must contain 12 to 128 characters without control delimiters')
         return values
 
 

@@ -7,7 +7,7 @@ from .models import SetupError
 class DemoProvisioner:
     def __init__(self,system):
         self.system=system
-        self.disks=[{'id':f'demo-disk-{i}','model':'SSD sistema' if i==0 else 'Disco de dados 1 TB',
+        self.disks=[{'id':f'demo-disk-{i}','model':'Demo System SSD' if i==0 else 'Demo HDD 1 TB',
             'serial':f'DEMO-{i:04d}','size_bytes':64*10**9 if i==0 else 10**12,
             'transport':'sata','eligible':i!=0,'reason':'system_disk' if i==0 else None,'signatures':[]}
             for i in range(5)]

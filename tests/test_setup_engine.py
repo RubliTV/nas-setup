@@ -159,3 +159,9 @@ def test_recovery_after_completed_format_requires_no_new_erasure(tmp_path,monkey
     assert p['recovery'] and not p['destructive'] and not p['confirmation_required']
     assert 'erase_selected_disks' not in p['warnings']
     assert request(e,'resume',{'plan_id':p['plan_id'],'passwords':credentials})['id']==job['id']
+
+
+@pytest.mark.parametrize('value',['a'*12+'\n','a'*12+'\r','a'*12+'\0'])
+def test_invalid_account_password_rejected_before_storage(value):
+    from nas_setup.setup_engine import SetupStart
+    with pytest.raises(ValueError):SetupStart(passwords={'ana':value})
