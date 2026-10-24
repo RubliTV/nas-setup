@@ -12,13 +12,15 @@ marker=Path('/root/NAS_SETUP_DISPOSABLE_VM')
 if not marker.is_file() or marker.is_symlink() or marker.stat().st_uid!=0:
     raise SystemExit('Root-owned disposable VM marker required.')
 MODE=sys.argv[1] if len(sys.argv)==2 else ''
-if MODE not in ('single','raid1','raid5','raid6','verify','lost-format','degraded','finish-degraded','conflicts','existing'):raise SystemExit('mode rejected')
+if MODE not in ('single','raid1','raid5','raid6','verify','syncing','lost-format','lost-format-resume','degraded','finish-degraded','conflicts','existing'):raise SystemExit('mode rejected')
 STATE=Path('/root/nas-v02-exercise')
 STATE.mkdir(mode=0o700,exist_ok=True)
+mutations=[]
 class DisposableAdapter(OmvProvisioner):
     def _require_validated(self):
         if not Path('/root/NAS_SETUP_DISPOSABLE_VM').exists():raise RuntimeError('VM marker required')
     def _mutate(self,op,params):
+        mutations.append(op)
         print('MUTATION',op,flush=True)
         result=super()._mutate(op,params)
         if MODE=='lost-format' and op=='filesystem_create':raise RuntimeError('injected lost response')
@@ -66,6 +68,45 @@ if MODE=='existing':
     reused=adapter.provision(selection.model_dump(),plan,OperationJournal(STATE/'existing-journal'),{})
     assert reused['volume']==resources['volume'] and reused['mount_path']==resources['mount_path']
     print('VERIFIED EXISTING VOLUME ZERO MUTATION RPCS',flush=True)
+    raise SystemExit(0)
+
+if MODE=='lost-format-resume':
+    from nas_setup.models import SetupError
+    plan=json.loads((STATE/'plan.json').read_text())
+    journal=OperationJournal(STATE/'journal')
+    assert journal.get('filesystem.dispatch')['status']=='dispatched'
+    assert journal.get('filesystem.result') is None
+    def forbidden_mutation(op,params):raise AssertionError('uncertain format repeated mutation '+op)
+    adapter._mutate=forbidden_mutation
+    try:adapter.provision(plan['selection'],plan,journal,{})
+    except SetupError as exc:assert exc.code=='recovery_required',exc.code
+    else:raise AssertionError('uncertain format resumed after restart')
+    print('VERIFIED POST-REBOOT UNCERTAIN FORMAT RECOVERY ZERO MUTATIONS',flush=True)
+    raise SystemExit(0)
+
+if MODE=='syncing':
+    from nas_setup.engine import Engine
+    from nas_setup.models import SetupError
+    resources=json.loads((STATE/'resources.json').read_text())
+    if not resources.get('md') or adapter.status(resources)['state']!='healthy':
+        raise SystemExit('Healthy owned disposable RAID required before consistency check.')
+    action=Path('/sys/class/block')/Path(resources['md']['devicefile']).name/'md/sync_action'
+    action.write_text('check')
+    try:
+        status=adapter.status(resources)
+        assert status['state']=='syncing' and 0<=status['progress']<100,status
+        print('VERIFIED ACTUAL SYNCHRONIZATION STATUS',json.dumps(status),flush=True)
+        engine=Engine(STATE/'syncing-engine',system);engine.wizard.provisioner=adapter
+        job=engine.store.create({},['raid_sync'],setup=True,resources=resources)
+        engine.store.update(job['id'],status='succeeded')
+        def forbidden_finish():raise AssertionError('syncing array reached system.finish')
+        system.finish=forbidden_finish
+        try:engine.call('finish')
+        except SetupError as exc:assert exc.code=='job_active',exc.code
+        else:raise AssertionError('syncing array allowed Finish')
+        assert engine.store.get(job['id'])['status']=='waiting-for-sync'
+        print('VERIFIED ACTUAL SYNCHRONIZATION BLOCKS FINISH',flush=True)
+    finally:action.write_text('idle')
     raise SystemExit(0)
 
 if MODE in ('degraded','finish-degraded'):
@@ -139,6 +180,7 @@ selection=SetupSelection(storage={'mode':'single' if MODE=='lost-format' else MO
             {'name':'Media','folder':'media','permissions':{'nasana':'none','nasbob':'rw','naseve':'ro'}}],apps=[],timezone='UTC')
 inventory={**system.inventory(),**adapter.inventory(),'provisioning_enabled':True}
 plan=plan_setup(selection,inventory)
+(STATE/'plan.json').write_text(json.dumps(plan));(STATE/'plan.json').chmod(0o600)
 print('TARGETS',[(d['serial'],d['id']) for d in plan['targets']],flush=True)
 passwords={u['name']:'Disposable-'+os.urandom(16).hex() for u in selection.model_dump()['users']}
 adapter.prepare(selection.model_dump(),plan)
@@ -149,10 +191,13 @@ except RuntimeError:
     if MODE!='lost-format':raise
     print('EXPECTED LOST FORMAT RESPONSE',flush=True)
     from nas_setup.models import SetupError
-    try:adapter.provision(selection.model_dump(),plan,journal,passwords)
+    restarted=DisposableAdapter(system)
+    reopened=OperationJournal(STATE/'journal')
+    try:restarted.provision(selection.model_dump(),plan,reopened,passwords)
     except SetupError as exc:
         assert exc.code=='recovery_required',exc.code
-        print('VERIFIED NO REPEATED FORMAT',flush=True)
+        assert mutations.count('filesystem_create')==1,mutations
+        print('VERIFIED FRESH ADAPTER RECOVERY WITH EXACTLY ONE FORMAT',flush=True)
         raise SystemExit(0)
     raise AssertionError('lost response unexpectedly continued')
 print('RESOURCES',json.dumps(resources),flush=True)

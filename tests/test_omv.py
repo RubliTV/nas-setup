@@ -1,4 +1,4 @@
-"""Safety contracts for the disabled-until-validated OMV adapter."""
+"""Safety, ownership and RPC contracts for the OMV adapter."""
 import json
 from pathlib import Path
 from types import SimpleNamespace
