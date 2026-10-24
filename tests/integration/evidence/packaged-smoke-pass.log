@@ -1,0 +1,10 @@
+PASS packaged bootstrap, systemd services, private state, verified HTTPS fingerprint
+PASS real HTTPS login, root-worker inventory/plan, CSRF and erasure boundaries
+LIVE WIZARD STEP storage_prerequisites
+LIVE WIZARD STEP storage_setup
+LIVE WIZARD STEP verify
+LIVE WIZARD STEP raid_sync
+LIVE WIZARD STEP succeeded
+PASS packaged HTTPS wizard installs missing MD plugin, completes healthy RAID1/users/share, no password in job history
+PASS Finish stops only installer; SMB continues; reopen authenticates and preserves setup
+PACKAGED SMOKE PASS enabled=True

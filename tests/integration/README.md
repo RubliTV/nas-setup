@@ -83,4 +83,20 @@ test venv. It checks a root-owned disposable marker, exactly five unique
 synthetic disk serials, QEMU SATA models and sizes, and OS exclusion before any
 provisioning. Restore `omv-clean` between layout/fault cases. Capture stdout and
 resource evidence on the host before restoring. Its VM-only adapter subclass
-bypasses the release gate; the production adapter remains disabled.
+bypasses the release gate for the isolated adapter matrix. The production gate
+was enabled only after the recorded matrix passed; the packaged smoke uses the
+actual production gate without this test subclass.
+
+
+`packaged_smoke.py ARCHIVE SHA256 --enabled` runs the real packaged bootstrap and
+HTTPS API through enabled production provisioning, without the adapter subclass.
+Use a clean guest with all four synthetic data disks blank and the MD plugin
+absent (`apt-get -y --no-auto-remove remove openmediavault-md`, then confirm dpkg
+completion and clean OMV configuration). It targets only data disks 1 and 2 for
+RAID 1. Synchronize guest UTC after snapshot restore, upload the checksum-verified
+archive and helper, and run the helper through a transient systemd service with
+`UMask=0077`. Preserve its sanitized stdout on the host. Bootstrap output containing
+the pairing code is captured separately in the guest's root-private
+`/root/nas-packaged-smoke/bootstrap-private.log`; never commit or publish that log.
+The fixed extraction directory must not exist at the start. Restore the clean
+snapshot for another complete attempt after preserving required evidence.

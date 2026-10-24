@@ -1,6 +1,6 @@
 # v0.2 disposable OMV validation
 
-Status: the disposable VM adapter matrix passed on the exact OMV/MD versions below. Packaged HTTPS installer validation is pending.
+Status: the disposable VM adapter matrix and enabled packaged HTTPS RAID 1 installer smoke passed on the exact OMV/MD versions below.
 
 The actual destructive paths passed the matrix below using disposable virtual
 disks and a test-only gate override. Production gate enablement is a separate
@@ -178,8 +178,28 @@ runtime directories inherited mode 0700 and the unprivileged pairing subprocess
 could not execute the venv interpreter. Both failed attempts remain failures;
 see `packaged-attempt1-failure.txt` and `packaged-attempt2-failure.txt`. Full
 private logs are retained only in the disposable `packaged-failure` VM snapshot.
-A corrected candidate must pass a fresh bootstrap before packaged validation
-can be claimed.
+The corrected candidate passed a fresh bootstrap under the same restrictive
+umask. Its SHA-256 is
+`c2301d9eaf7afa14df87b552f4976413e798bcbe25b4576041092330ea9d728b`.
+The actual production gate was enabled; no adapter subclass was used. The smoke
+verified service ownership/modes, the served HTTPS certificate against its
+printed fingerprint, anonymous-access denial, pairing login, root-worker disk
+inventory/plan, CSRF rejection, and required erasure consent. The wizard then
+installed `openmediavault-md 8.1.6-1`, created healthy RAID 1 with two exact members
+and tolerance 1, created two users and one share, removed temporary credentials,
+and kept passwords out of job responses. Finish stopped both installer services
+while Samba stayed active; reopening authenticated successfully and preserved
+the completed job. The service exited with status zero. See
+`packaged-smoke-pass.log` and `packaged-smoke-result.txt`.
+
+`packaged-archive-sha256.txt` identifies the passing archive, and
+`packaged-runtime-sha256.json` records 29 runtime source hashes independently
+checked against that archive. Failed candidates retain separate
+`packaged-attempts1-2-*` provenance. A later documentation-only rebuild may have a
+different archive hash; all 29 runtime hashes must remain equal to this passing
+candidate to carry forward its runtime evidence. This smoke uses a Python HTTPS
+client against the packaged web service; it does not claim physical-browser
+rendering or third-party application installation was exercised in the VM.
 
 ## Required live matrix
 

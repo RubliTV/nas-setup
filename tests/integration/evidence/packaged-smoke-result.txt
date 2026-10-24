@@ -1,0 +1,5 @@
+Result=success
+ExecMainStatus=0
+openmediavault	8.5.12-1
+openmediavault-md	8.1.6-1
+76a78072915b39604f2f89d597f02c0e14839d93b6ec1f8edc75e5c035796a78  /root/nas-v02-packaged-smoke.py
