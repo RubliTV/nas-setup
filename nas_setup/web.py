@@ -101,6 +101,11 @@ def create_app(backend,state_dir,origin,demo=False):
         session=authorize(request,True)
         return backend.call('setup_plan',{'session':session['id'],'data':selection.model_dump()})
 
+    @app.post('/api/setup/recovery')
+    def setup_recovery(request:Request):
+        session=authorize(request,True)
+        return backend.call('setup_recovery',{'session':session['id'],'data':{}})
+
     @app.post('/api/setup/{operation}')
     def setup_action(operation:str,body:SetupStart,request:Request):
         session=authorize(request,True)

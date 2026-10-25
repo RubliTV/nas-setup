@@ -26,3 +26,28 @@ The v0.2 Python suite covers RAID minima/capacity, excluded/changed disks, stric
 Security/recovery regression tests also cover pairing temp-file symlinks, a moved filesystem UUID, unmanaged Docker projects, changed bind sources/access mode, occupied ports, invalid saved secrets and redacted failure diagnostics. These are mocked or local filesystem/socket tests; they do not establish live OMV compatibility.
 
 Run `python -m pytest -q` and `node tests/browser.cjs` for current counts and results. The manual live VM harness is under `tests/integration/`; it must only target disposable virtual disks.
+
+## v0.2.1 retry and update checks
+
+The patch adds regression coverage for saved-job authorization across worker
+restart, recovery checks even within the same session, automatic mdadm-only
+prerequisite deployment, and refusal of unrelated configuration changes. The
+browser test checks that retry never requests another plan or redirects to
+review, and that accepted retry clears password inputs.
+
+Updater tests cover real temporary SQLite/filesystem state with external command
+boundaries replaced: active-job refusal, update/rollback preserving saved jobs,
+certificates and configuration, writer-lock races, fixed venv paths, repeated
+patch updates, and verified HTTPS readiness. The full suite passes 163 tests on
+Python 3.12 and 3.15; Chrome browser integration also passes.
+
+`tests/integration/upgrade_recovery.py` runs only on the identity-checked
+disposable guest with four untouched synthetic data disks. The old release receives an explicitly labelled pending-configuration fault
+after prerequisites, matching the reported failure boundary. The harness installs published v0.2.0, requires the
+observed empty-journal/pending-configuration failure, updates the saved job using
+the v0.2.1 archive, then resumes via HTTPS with passwords and explicit pending-change approval, without another disk plan or ERASE prompt. It checks RAID1,
+users, folder permissions, credential cleanup, Finish and reopen. Never run
+this harness against a physical NAS.
+
+The live result and the corrected pending-state hypothesis are documented in
+[v0.2.1 validation](v021-vm-validation.md).

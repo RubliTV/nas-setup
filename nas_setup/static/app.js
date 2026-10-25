@@ -1,6 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let dictionaries={},lang=localStorage.getItem('nas-language')||'pt-BR',csrf='',screen='login',inventory=null,plan=null,job=null,demo=false,polling=false,errorCode=null,resuming=false;
+let dictionaries={},lang=localStorage.getItem('nas-language')||'pt-BR',csrf='',screen='login',inventory=null,plan=null,job=null,demo=false,polling=false,errorCode=null;
+let pendingInfo=null,pendingChecked=null,pendingRequest=null;
 let draft={storage:{mode:'raid1',disks:[],volume:null},users:[{name:''}],shares:[],apps:[],timezone:'America/Sao_Paulo',machine_learning:false},passwords=[];
 try{const saved=JSON.parse(localStorage.getItem('nas-setup-draft'));if(saved?.selection){draft=saved.selection;screen=saved.screen||'storage';}}catch{}
 const t=(key,values={})=>Object.entries(values).reduce((s,[k,v])=>s.replaceAll(`{${k}}`,String(v)),dictionaries[lang]?.[key]||dictionaries.en?.[key]||key);
@@ -15,7 +16,7 @@ async function api(path,method='GET',body){
 }
 async function action(button,fn){button.disabled=true;error(null);try{await fn();}catch(e){error(e.message);}finally{button.disabled=false;updateSelection();}}
 function save(){localStorage.setItem('nas-setup-draft',JSON.stringify({selection:draft,screen:['storage','shares','apps'].includes(screen)?screen:'apps'}));}
-function invalidate(){plan=null;resuming=false;save();}
+function invalidate(){plan=null;save();}
 function show(name){screen=name;document.querySelectorAll('.screen').forEach(s=>s.hidden=s.id!=='screen-'+name);document.querySelectorAll('#navigation li').forEach(s=>s.classList.toggle('active',s.dataset.step===name));error(null);if(inventory&&!job)save();window.scrollTo({top:0,behavior:'instant'});}
 function selection(){return {storage:{...draft.storage,disks:draft.storage.mode==='existing'?[]:[...draft.storage.disks],volume:draft.storage.mode==='existing'?draft.storage.volume:null},users:draft.users.map(u=>({name:u.name.trim()})),shares:draft.shares.filter(s=>s.enabled).map(s=>({name:s.name.trim(),folder:s.folder,permissions:Object.fromEntries(draft.users.map(u=>[u.name.trim(),s.permissions[u.name]||'none']))})),apps:[...draft.apps],timezone:draft.timezone.trim(),machine_learning:draft.apps.includes('immich')&&draft.machine_learning};}
 function chosenDisks(){return (inventory?.disks||[]).filter(d=>draft.storage.disks.includes(d.id));}
@@ -86,6 +87,7 @@ function renderPlan(){
 async function review(){validateUsers();plan=await api('setup/plan','POST',selection());$('erase-targets').replaceChildren();$('erase-confirmation').value='';renderPlan();show('review');}
 function raidPending(){const raid=job?.selection?.storage?.mode?.startsWith('raid')?job?.resources?.raid:null;return job?.status==='waiting-for-sync'||raid&&['syncing','resyncing','recovering','degraded','pending','unknown'].includes(raid.state);}
 function renderJob(){
+ if(!['failed','interrupted','paused'].includes(job.status)){pendingInfo=null;pendingChecked=null;}
  const status=job.status,pending=raidPending();text('progress-title',t((pending&&status==='succeeded'?'waiting-for-sync':status)+'Title'));text('progress-description',t((pending&&status==='succeeded'?'waiting-for-sync':status)+'Description'));
  const steps=job.steps||[],done=steps.filter(s=>s.status==='succeeded').length,percent=steps.length?Math.round(done/steps.length*100):0;text('progress-caption',t('stepsComplete',{done,total:steps.length}));text('progress-percent',percent+'%');$('progress-bar').value=percent;
  $('job-steps').replaceChildren();for(const [i,s] of steps.entries()){const li=node('li');li.dataset.status=s.status;li.append(node('span','step-icon',s.status==='succeeded'?'✓':String(i+1)),node('span','',labelStep(s.id)),node('span','step-status',t(s.status)));$('job-steps').append(li);}
@@ -96,16 +98,37 @@ function renderJob(){
  if(needsCredentials&&!$('resume-passwords').children.length){for(const u of job.selection.users){const f=inputField(`${t('password')} · ${u.name}`,'resume-password','password','',()=>{});f.querySelector('input').dataset.user=u.name;$('resume-passwords').append(f);}}
  $('results').replaceChildren();if(job.resources?.shares?.length){const panel=node('div','panel share-results');panel.append(node('h3','',t('sharedFolders')),node('p','',demo?t('demoShares'):t('sharesReady')));const host=demo?'NAS-IP':location.hostname;for(const s of job.resources.shares){panel.append(node('strong','',s.name),node('code','',`\\\\${host}\\${s.name}`),node('code','',`smb://${host}/${encodeURIComponent(s.name)}`));}panel.append(node('p','',`${t('fileUsers')}: ${(job.selection?.users||[]).map(u=>u.name).join(', ')}`),node('p','',t('backupReminder')));if(!demo){const a=node('a','secondary',t('manageOmv'));a.href=`http://${location.hostname}/`;a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}$('results').append(panel);}
  if(['succeeded','waiting-for-sync'].includes(status))for(const [app,details] of Object.entries(job.links||{})){const panel=node('div','panel');panel.append(node('h3','',labelStep(app)),node('p','',t(demo?'demoResult':app==='tailscale'?'remoteReady':'serviceReady')));if(!demo&&details.port){const a=node('a','secondary',t('openApp'));a.href=`http://${location.hostname}:${details.port}`;a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}if(!demo&&details.ips?.length)panel.append(node('p','',details.ips.join(' · ')));$('results').append(panel);}
+ renderPending();
 }
-async function poll(){if(polling||screen==='finished'||resuming)return;polling=true;try{const current=await api('job');if(current){job=current;if(screen!=='progress')show('progress');renderJob();if(job.status==='waiting-for-user'){const ts=await api('tailscale');const link=$('tailscale-link');link.hidden=!ts.url;if(ts.url?.startsWith('https://login.tailscale.com/'))link.href=ts.url;else link.removeAttribute('href');}}}catch(e){error(e.message);}finally{polling=false;}}
+function renderPending(){
+ $('pending-config').hidden=!pendingInfo;
+ $('pending-modules').replaceChildren(...(pendingInfo?.modules||[]).map(name=>node('li','',dictionaries[lang]?.['module_'+name]?`${t('module_'+name)} (${name})`:name)));
+ if(pendingInfo){$('resume').hidden=true;$('job-error').hidden=true;}
+}
+async function loadPending(){
+ if(job?.error!=='omv_configuration_changed'||!['failed','interrupted','paused'].includes(job.status)||pendingChecked===job.id)return;
+ if(pendingRequest)return pendingRequest;
+ const id=job.id;
+ pendingRequest=(async()=>{const info=await api('setup/recovery','POST',{});
+  if(job.id===id&&['failed','interrupted','paused'].includes(job.status)){
+   pendingChecked=id;pendingInfo=info.pending_id&&!(job.selection?.storage?.mode?.startsWith('raid')&&info.modules.length===1&&info.modules[0]==='mdadm')?info:null;renderPending();
+  }
+ })();
+ try{await pendingRequest;}finally{pendingRequest=null;}
+}
+async function poll(){if(polling||screen==='finished')return;polling=true;try{const current=await api('job');if(current){job=current;if(screen!=='progress')show('progress');renderJob();await loadPending();if(job.status==='waiting-for-user'){const ts=await api('tailscale');const link=$('tailscale-link');link.hidden=!ts.url;if(ts.url?.startsWith('https://login.tailscale.com/'))link.href=ts.url;else link.removeAttribute('href');}}}catch(e){error(e.message);}finally{polling=false;}}
 async function entered(){
  inventory=await api('inventory');if(!draft.shares.length&&!localStorage.getItem('nas-setup-draft'))draft.shares=['files','media','backups'].map(folder=>({name:t('folder_'+folder),folder,permissions:{'':'rw'},enabled:true}));
  if(inventory.provisioning_enabled===false)draft.storage={mode:'existing',disks:[],volume:draft.storage.volume};renderInventory();renderUsers();renderShares();updateSelection();const savedScreen=screen;await poll();if(!job)show(['storage','shares','apps'].includes(savedScreen)?savedScreen:'storage');
 }
-async function resume(){
+async function resume(approvePending=false){
+ await loadPending();
+ if(pendingInfo&&!approvePending){renderPending();return;}
  const credentials=$('resume-credentials').hidden?{}:Object.fromEntries([...document.querySelectorAll('.resume-password')].filter(e=>e.value).map(e=>[e.dataset.user,e.value]));
- try{job=await api(job.setup?'setup/resume':'resume','POST',job.setup?{passwords:credentials}:undefined);renderJob();}
- catch(e){if(['confirmation_required','plan_missing'].includes(e.message)){resuming=true;plan=await api('setup/plan','POST',job.selection);$('erase-targets').replaceChildren();$('erase-confirmation').value='';renderPlan();show('review');}else throw e;}
+ try{job=await api(job.setup?'setup/resume':'resume','POST',job.setup?{passwords:credentials,...(approvePending&&pendingInfo?{pending_id:pendingInfo.pending_id}:{})}:undefined);}
+ catch(e){if(['omv_configuration_changed','confirmation_required'].includes(e.message)){pendingInfo=null;pendingChecked=null;await loadPending();}throw e;}
+ document.querySelectorAll('.resume-password').forEach(input=>input.value='');
+ renderJob();
 }
 async function init(){
  dictionaries=await fetch('/static/i18n.json').then(r=>r.json());if(!dictionaries[lang])lang='pt-BR';applyLanguage();const session=await api('session');demo=session.demo;$('demo-banner').hidden=!demo;$('demo-login').hidden=!demo;if(session.authenticated){csrf=session.csrf;await entered();}
@@ -115,9 +138,9 @@ async function init(){
  $('storage-next').onclick=()=>{if(validStorage())show('shares');};$('shares-next').onclick=e=>action(e.currentTarget,async()=>{validateUsers();show('apps');});
  $('add-user').onclick=()=>{draft.users.push({name:''});passwords.push({});invalidate();renderUsers();renderShares();};$('add-share').onclick=()=>{draft.shares.push({name:t('newShare'),folder:'custom',permissions:{},enabled:true});invalidate();renderShares();};
  for(const c of document.querySelectorAll('.app-card input'))c.onchange=()=>{draft.apps=[...document.querySelectorAll('.app-card input:checked')].map(i=>i.value);invalidate();updateSelection();};$('timezone').oninput=()=>{draft.timezone=$('timezone').value;invalidate();};$('machine-learning').onchange=()=>{draft.machine_learning=$('machine-learning').checked;invalidate();};
- $('apps-next').onclick=e=>action(e.currentTarget,review);for(const b of document.querySelectorAll('.back'))b.onclick=()=>{if(resuming){resuming=false;show('progress');}else{invalidate();show(b.dataset.target);}};$('erase-confirmation').oninput=updateSelection;
- $('install').onclick=e=>action(e.currentTarget,async()=>{const creds=resuming?Object.fromEntries([...document.querySelectorAll('.resume-password')].filter(e=>e.value).map(e=>[e.dataset.user,e.value])):Object.fromEntries(draft.users.map((u,i)=>[u.name.trim(),passwords[i]?.password||'']));job=await api(resuming?'setup/resume':'setup/start','POST',{plan_id:plan.plan_id,confirmation:$('erase-confirmation').value,erase_disks:[...document.querySelectorAll('.erase-check:checked')].map(c=>c.value),passwords:creds});passwords=[];document.querySelectorAll('input[type=password]').forEach(i=>i.value='');resuming=false;localStorage.removeItem('nas-setup-draft');show('progress');renderJob();});
- $('pause').onclick=e=>action(e.currentTarget,async()=>{job=await api('pause','POST');renderJob();});$('resume').onclick=e=>action(e.currentTarget,resume);$('check-tailscale').onclick=e=>action(e.currentTarget,resume);$('finish').onclick=e=>action(e.currentTarget,async()=>{await api('finish','POST');show('finished');});
+ $('apps-next').onclick=e=>action(e.currentTarget,review);for(const b of document.querySelectorAll('.back'))b.onclick=()=>{invalidate();show(b.dataset.target);};$('erase-confirmation').oninput=updateSelection;
+ $('install').onclick=e=>action(e.currentTarget,async()=>{const creds=Object.fromEntries(draft.users.map((u,i)=>[u.name.trim(),passwords[i]?.password||'']));job=await api('setup/start','POST',{plan_id:plan.plan_id,confirmation:$('erase-confirmation').value,erase_disks:[...document.querySelectorAll('.erase-check:checked')].map(c=>c.value),passwords:creds});passwords=[];document.querySelectorAll('input[type=password]').forEach(i=>i.value='');localStorage.removeItem('nas-setup-draft');show('progress');renderJob();});
+ $('pause').onclick=e=>action(e.currentTarget,async()=>{job=await api('pause','POST');renderJob();});$('resume').onclick=e=>action(e.currentTarget,resume);$('apply-pending').onclick=e=>action(e.currentTarget,()=>resume(true));$('check-tailscale').onclick=e=>action(e.currentTarget,resume);$('finish').onclick=e=>action(e.currentTarget,async()=>{await api('finish','POST');show('finished');});
  setInterval(()=>{if(csrf&&screen==='progress')poll();},1500);
 }
 init().catch(e=>error(e.message));

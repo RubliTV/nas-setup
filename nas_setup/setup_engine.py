@@ -15,6 +15,7 @@ from .journal import OperationJournal
 
 class SetupStart(StrictModel):
     plan_id: str | None = Field(default=None,max_length=128)
+    pending_id: str | None = Field(default=None,max_length=128)
     confirmation: str = Field(default='',max_length=32)
     erase_disks: list[str] = Field(default_factory=list,max_length=16)
     passwords: dict[str,SecretStr] = Field(default_factory=dict,max_length=32)
@@ -42,9 +43,10 @@ def private_json(path,data):
 class WizardEngine:
     def __init__(self,engine,provisioner):
         self.engine=engine;self.system=engine.system;self.provisioner=provisioner
-        self.plans={};self.grants={}
+        self.plans={};self.grants={};self.pending_offers={};self.pending_runs={}
         self.directory=engine.store.directory/'setup';self.directory.mkdir(exist_ok=True,mode=0o700)
-        # A process restart invalidates pending credential material and unused grants.
+        # A restart discards credentials and unused plans; a saved job retains its
+        # original authorization, subject to recovery verification on every retry.
         for path in self.directory.glob('*/credentials.json'):path.unlink()
 
     def inventory(self):return {**self.system.inventory(),**self.provisioner.inventory()}
@@ -53,6 +55,9 @@ class WizardEngine:
         if set(payload)!={'session','data'} or not isinstance(payload['session'],str) or not payload['session']:
             raise SetupError('request_invalid')
         session=payload['session'];data=payload['data']
+        if operation=='recovery':
+            if data:raise SetupError('request_invalid')
+            return self.recovery(session)
         if operation=='plan':return self.plan(SetupSelection(**data),session)
         if operation=='start':return self.start(SetupStart(**data),session)
         if operation=='resume':return self.resume(SetupStart(**data),session)
@@ -120,6 +125,7 @@ class WizardEngine:
 
     def start(self,body,session):
         with self.engine.lock:
+            if body.pending_id is not None:raise SetupError('request_invalid')
             plan=self._confirmed(body,session)
             if self.plans[body.plan_id].get('recovery_job'):raise SetupError('recovery_resume_only')
             credentials=self._credentials(body,plan['selection'])
@@ -129,6 +135,22 @@ class WizardEngine:
             self._launch(job)
             return job
 
+    def recovery(self,session):
+        with self.engine.lock:
+            job=self.engine.store.get()
+            if not job or not job.get('setup'):raise SetupError('job_missing')
+            if job['status'] not in {'failed','interrupted','paused'}:raise SetupError('job_active')
+            journal=OperationJournal(self.directory/job['id']/'journal')
+            pending=self.provisioner.pending_configuration(job['plan'],journal)
+            if not pending:return {'pending_id':None,'modules':[]}
+            fingerprint=self._recovery_fingerprint(job,self.inventory())
+            self.pending_offers={k:v for k,v in self.pending_offers.items() if v['expires']>time.time()}
+            if len(self.pending_offers)>=128:raise SetupError('rate_limited')
+            token=secrets.token_urlsafe(24)
+            self.pending_offers[token]={'job':job['id'],'session':session,'expires':time.time()+900,
+                                        'snapshot':pending,'fingerprint':fingerprint}
+            return {'pending_id':token,'modules':pending['modules']}
+
     def resume(self,body,session):
         with self.engine.lock:
             job=self.engine.store.get()
@@ -137,13 +159,33 @@ class WizardEngine:
                 raise SetupError('job_active')
             storage_done=any(s['id']=='storage_setup' and s['status']=='succeeded' for s in job['steps'])
             if not storage_done:
-                if self.grants.get(job['id'])!=session:
+                # Jobs are created only after explicit confirmation and kept in the
+                # root-private database. Resume that exact plan, never a new one.
+                if job['plan']['selection']!=job['selection']:raise SetupError('storage_changed')
+                if body.plan_id is not None:
                     plan=self._confirmed(body,session)
                     if plan['selection']!=job['selection']:raise SetupError('storage_changed')
-                    self.plans.pop(body.plan_id);self.grants[job['id']]=session
+                inv=self.inventory()
+                if not inv.get('provisioning_enabled'):raise SetupError('provisioning_unvalidated')
+                fingerprint=self._recovery_fingerprint(job,inv)
+                pending=None
+                if body.pending_id is not None:
+                    offer=self.pending_offers.get(body.pending_id)
+                    if not offer or offer['session']!=session or offer['job']!=job['id']:
+                        raise SetupError('confirmation_required')
+                    journal=OperationJournal(self.directory/job['id']/'journal')
+                    if (offer['expires']<time.time() or offer['fingerprint']!=fingerprint or
+                        offer['snapshot']!=self.provisioner.pending_configuration(job['plan'],journal)):
+                        raise SetupError('omv_configuration_changed')
+                    pending=offer['snapshot']
                 credentials=self._credentials(body,job['selection'])
+                if body.plan_id is not None:self.plans.pop(body.plan_id)
+                self.grants[job['id']]=session
                 private_json(self.directory/job['id']/'credentials.json',credentials)
-            elif body.passwords:raise SetupError('request_invalid')
+                if pending:
+                    self.pending_runs[job['id']]=pending
+                    self.pending_offers.pop(body.pending_id)
+            elif body.passwords or body.pending_id:raise SetupError('request_invalid')
             job=self.engine.store.update(job['id'],status='running',error=None,pause_requested=False)
             self._launch(job);return job
 
@@ -175,6 +217,12 @@ class WizardEngine:
         journal=OperationJournal(self.directory/identity/'journal')
         selection=job['selection'];plan=job['plan']
         try:
+            pending=self.pending_runs.pop(identity,None)
+            if pending:
+                step='storage_prerequisites'
+                self.engine.store.step(identity,step,'running')
+                self.provisioner.apply_pending_configuration(plan,journal,pending)
+                self.engine.store.step(identity,step,'succeeded')
             for record in job['steps']:
                 step=record['id']
                 current=self.engine.store.get(identity)

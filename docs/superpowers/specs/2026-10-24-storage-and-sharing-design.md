@@ -123,3 +123,20 @@ An independent design check identified four implementation gaps, now specified a
 - https://docs.openmediavault.org/en/stable/administration/storage/raid.html
 - https://docs.openmediavault.org/en/stable/administration/storage/sharedfolders.html
 - https://github.com/openmediavault/openmediavault/tree/e0c7b63bf55064eaa6a5e476800465d27e9b86a5/deb
+
+## v0.2.1 recovery amendment (2026-10-24)
+
+The user's hardware report and explicit request to automate retries supersede the
+fresh-consent-on-restart/failure rule above. The root-private saved job is the
+durable authorization for its exact original, explicitly confirmed disk plan.
+Every authenticated resume verifies the original target identities, journal
+outcomes and owned resources before dispatch. A new job still needs a new plan
+and explicit per-disk/ERASE confirmation. Neither a fresh login nor a worker
+restart alone requires the viewer to repeat review. Uncertain dispatched actions
+and changed disks still stop recovery; saved authorization cannot override them.
+
+The MD plugin can mark mdadm dirty during upgrades; its first-install branches
+do not establish the cause of the user’s pending state. Apply this known module
+automatically, only when it is the sole pending module and package/schema checks
+pass. A legacy v0.2 failed job may use this repair before any journal operation or
+checkpoint exists. Never blanket-apply unrelated pending OMV changes.

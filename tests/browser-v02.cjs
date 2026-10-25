@@ -116,6 +116,40 @@ const net=require('node:net');
   await page.route('**/api/job',async route=>{const r=await route.fetch();const body=await r.json();body.selection.storage.mode='single';await route.fulfill({response:r,json:body});});
   await page.reload();await page.locator('#finish').waitFor({state:'visible'});
   assert(await page.locator('#raid-status').isHidden(),'single-disk storage is never labeled healthy RAID');
+  // Retry remains on progress even if an older server requests a new plan.
+  await page.unroute('**/api/job');
+  let retryJob=await page.evaluate(async()=>await (await fetch('/api/job')).json());
+  retryJob.status='failed';retryJob.error='omv_configuration_changed';
+  retryJob.steps=retryJob.steps.map(s=>({...s,status:s.id==='storage_prerequisites'?'succeeded':s.id==='storage_setup'?'failed':'pending'}));
+  retryJob.resources={};
+  await page.route('**/api/job',route=>route.fulfill({json:retryJob}));
+  await page.route('**/api/setup/resume',route=>route.fulfill({status:400,json:{error:'plan_missing'}}));
+  await page.reload();await page.locator('#resume-passwords input').first().waitFor({state:'visible'});
+  for(const input of await page.locator('#resume-passwords input').all())await input.fill('RetryPassword-2026!');
+  const plansBefore=requests.filter(r=>r.url.endsWith('/plan')).length;
+  await page.locator('#resume').click();await page.locator('#error').waitFor({state:'visible'});
+  assert(await page.locator('#screen-progress').isVisible(),'retry errors stay on progress');
+  assert.equal(requests.filter(r=>r.url.endsWith('/plan')).length,plansBefore,'retry does not request another erase plan');
+  // mdadm is auto-applicable only to RAID jobs; other modes need the button.
+  retryJob.selection.storage.mode='single';
+  await page.route('**/api/setup/recovery',route=>route.fulfill({json:{pending_id:'single-pending',modules:['mdadm']}}));
+  await page.reload();await page.locator('#pending-config').waitFor({state:'visible'});
+  assert.match(await page.locator('#pending-modules').innerText(),/mdadm/);
+  await page.unroute('**/api/setup/recovery');retryJob.selection.storage.mode='raid1';
+  // Unattributed OMV changes can be approved inline, without disk review.
+  await page.route('**/api/setup/recovery',route=>route.fulfill({json:{pending_id:'pending-test-token',modules:['fstab','mdadm']}}));
+  await page.reload();await page.locator('#pending-config').waitFor({state:'visible'});
+  assert.match(await page.locator('#pending-modules').innerText(),/fstab/);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:join(root,'test-results/v021-pending-mobile.png'),fullPage:true});
+  assert(await page.locator('#screen-progress').isVisible());
+  for(const input of await page.locator('#resume-passwords input').all())await input.fill('RetryPassword-2026!');
+  await page.unroute('**/api/setup/resume');
+  await page.route('**/api/setup/resume',async route=>{retryJob={...retryJob,status:'running',error:null};await route.fulfill({json:retryJob});});
+  await page.locator('#apply-pending').click();await page.locator('#pause').waitFor({state:'visible'});
+  assert.equal(requests.filter(r=>r.url.endsWith('/resume')).at(-1).body.pending_id,'pending-test-token');
+  assert(await page.locator('#screen-progress').isVisible());
+  assert.equal(await page.locator('#resume-passwords input').first().inputValue(),'','accepted retry clears passwords');
   assert.deepEqual(errors,[]);console.log('v0.2 browser integration passed: layouts, permissions, secrets, consent, reload, results, PT/EN and mobile.');
  }finally{await browser?.close();server.kill();rmSync(state,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

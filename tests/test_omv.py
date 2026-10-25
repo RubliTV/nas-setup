@@ -441,7 +441,7 @@ def test_exact_validated_package_versions_required(tmp_path,raid,versions,accept
     if not raid:assert not any(call[3]=='openmediavault-md' for call in calls)
 
 
-@pytest.mark.parametrize('operation,expected_timeout',[('config_apply',1740),('disk_list',180)])
+@pytest.mark.parametrize('operation,expected_timeout',[('config_apply',1740),('disk_list',180),('config_dirty_modules',None)])
 def test_php_bridge_allows_bounded_slow_config_apply(tmp_path,operation,expected_timeout):
     import shutil,subprocess
     php=shutil.which('php')
@@ -460,6 +460,7 @@ namespace OMV\\Rpc {
 class Rpc {
     const MODE_REMOTE = 2;
     public static function call($service, $method, $params, $context, $mode) {
+        if ($service === 'System') { return ['dirtyModules' => ['samba' => 'SMB', 'mdadm' => 'RAID']]; }
         return ['timeout' => \\OMV\\Environment::get('OMV_ENGINED_SO_RCVTIMEO'), 'service' => $service];
     }
 }}
@@ -472,5 +473,217 @@ class Rpc {
         '-d','include_path='+str(tmp_path),str(omv.BRIDGE)],input=json.dumps({'operation':operation,'params':None}),
         text=True,capture_output=True,timeout=10)
     assert result.returncode==0,result.stderr
+    if operation=='config_dirty_modules':
+        assert json.loads(result.stdout)=={'ok':True,'result':['mdadm','samba']}
+        return
     assert json.loads(result.stdout)=={'ok':True,'result':{'timeout':expected_timeout,
         'service':'Config' if operation=='config_apply' else 'DiskMgmt'}}
+
+
+def prerequisite_adapter(tmp_path,monkeypatch,modules):
+    calls=[];pending=list(modules);digest=['original']
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path))
+    adapter._digest=lambda:digest[0]
+    adapter._verify_packages=lambda raid:calls.append(('packages',raid))
+    monkeypatch.setattr(omv,'verify_schemas',lambda **kw:calls.append(('schemas',kw)))
+    def rpc(op,params=None):
+        calls.append((op,params))
+        if op=='config_dirty':return bool(pending)
+        if op=='config_dirty_modules':return list(pending)
+        if op=='config_apply':
+            assert params=={'modules':['mdadm'],'force':False}
+            pending.clear();return ['mdadm']
+        pytest.fail('unexpected RPC '+op)
+    adapter._rpc=rpc
+    return adapter,calls,pending,digest
+
+
+def test_prerequisite_mdadm_pending_is_deployed_before_storage(tmp_path,monkeypatch):
+    adapter,calls,pending,_=prerequisite_adapter(tmp_path,monkeypatch,['mdadm'])
+    assert adapter._settle_prerequisites(True)=='original'
+    assert pending==[]
+    assert calls.index(('packages',True))<calls.index(('config_apply',{'modules':['mdadm'],'force':False}))
+
+
+@pytest.mark.parametrize('modules,raid',[(['mdadm','samba'],True),(['systemd-networkd'],True),(['mdadm'],False)])
+def test_prerequisite_settle_rejects_unrelated_modules(tmp_path,monkeypatch,modules,raid):
+    adapter,calls,_,_=prerequisite_adapter(tmp_path,monkeypatch,modules)
+    with pytest.raises(SetupError,match='omv_configuration_changed'):adapter._settle_prerequisites(raid)
+    assert not any(c[0]=='config_apply' for c in calls)
+
+
+def test_prerequisite_settle_rechecks_configuration_before_apply(tmp_path,monkeypatch):
+    adapter,calls,_,digest=prerequisite_adapter(tmp_path,monkeypatch,['mdadm'])
+    original=adapter._rpc
+    def changed(op,params=None):
+        result=original(op,params)
+        if op=='config_dirty_modules':digest[0]='external'
+        return result
+    adapter._rpc=changed
+    with pytest.raises(SetupError,match='omv_configuration_changed'):adapter._settle_prerequisites(True)
+    assert not any(c[0]=='config_apply' for c in calls)
+
+
+def test_legacy_empty_journal_repairs_only_mdadm_before_checkpoint(tmp_path,monkeypatch):
+    from nas_setup.journal import OperationJournal
+    adapter,calls,pending,_=prerequisite_adapter(tmp_path,monkeypatch,['mdadm'])
+    journal=OperationJournal(tmp_path/'journal')
+    adapter._start_context(journal,raid=True)
+    assert pending==[] and journal.snapshot()==[]
+    assert json.loads((journal.directory/'omv-config-checkpoint.json').read_text())=={'digest':'original'}
+
+
+def test_pending_mdadm_never_repairs_a_nonempty_journal_without_checkpoint(tmp_path,monkeypatch):
+    from nas_setup.journal import OperationJournal
+    adapter,calls,_,_=prerequisite_adapter(tmp_path,monkeypatch,['mdadm'])
+    journal=OperationJournal(tmp_path/'journal');journal.perform('adapter.owner',lambda:{'id':'old'})
+    with pytest.raises(SetupError,match='omv_configuration_changed'):adapter._start_context(journal,raid=True)
+    assert not any(c[0]=='config_apply' for c in calls)
+
+
+@pytest.mark.parametrize('initial_pending',[[],['mdadm']])
+def test_prepare_settles_new_package_pending_before_success(tmp_path,monkeypatch,initial_pending):
+    from nas_setup.setup_models import SetupSelection
+    adapter,calls,pending,_=prerequisite_adapter(tmp_path,monkeypatch,initial_pending)
+    adapter._require_validated=lambda:None
+    adapter.system.inventory=lambda:{'supported':True}
+    def run(args,**kw):
+        if args[0]=='apt-get':pending.append('mdadm');calls.append(('apt',None))
+        return SimpleNamespace(returncode=0,stdout='')
+    adapter.system.run=run
+    original=adapter._rpc
+    adapter._rpc=lambda op,params=None:[] if op=='md_candidates' else original(op,params)
+    selection=SetupSelection(storage={'mode':'raid1','disks':['first','second']},apps=[]).model_dump()
+    adapter.prepare(selection,{'selection':selection})
+    assert pending==[] and adapter._config_digest=='original'
+    apply_indexes=[i for i,c in enumerate(calls) if c==('config_apply',{'modules':['mdadm'],'force':False})]
+    assert calls.index(('apt',None))<apply_indexes[-1]
+    if initial_pending:assert apply_indexes[0]<calls.index(('apt',None))
+
+
+@pytest.mark.parametrize('failure',['package','schema','apply'])
+def test_failed_prerequisite_repair_never_writes_checkpoint(tmp_path,monkeypatch,failure):
+    from nas_setup.journal import OperationJournal
+    adapter,calls,_,_=prerequisite_adapter(tmp_path,monkeypatch,['mdadm'])
+    def fail(*a,**kw):raise SetupError('omv_rpc_failed')
+    if failure=='package':adapter._verify_packages=fail
+    elif failure=='schema':monkeypatch.setattr(omv,'verify_schemas',fail)
+    else:
+        original=adapter._rpc
+        adapter._rpc=lambda op,params=None:fail() if op=='config_apply' else original(op,params)
+    journal=OperationJournal(tmp_path/'journal')
+    with pytest.raises(SetupError):adapter._start_context(journal,raid=True)
+    assert not (journal.directory/'omv-config-checkpoint.json').exists()
+    assert journal.snapshot()==[]
+    if failure!='apply':assert not any(c[0]=='config_apply' for c in calls)
+
+
+def pending_consent_adapter(tmp_path,monkeypatch):
+    from nas_setup.journal import OperationJournal
+    adapter,calls,pending,digest=prerequisite_adapter(tmp_path,monkeypatch,['samba','fstab'])
+    adapter._require_validated=lambda:calls.append(('validated',None))
+    def rpc(op,params=None):
+        calls.append((op,params))
+        if op=='config_dirty_modules':return list(pending)
+        if op=='config_dirty':return bool(pending)
+        if op=='config_apply':pending.clear();return params['modules']
+        pytest.fail('unexpected RPC '+op)
+    adapter._rpc=rpc
+    journal=OperationJournal(tmp_path/'journal')
+    plan={'selection':{'storage':{'mode':'single'},'users':[],'shares':[]},
+          'targets':[{'id':'/dev/disk/by-id/data','serial':'data'}]}
+    adapter._check_target=lambda *a,**kw:calls.append(('target_check',None))
+    return adapter,journal,plan,calls,pending,digest
+
+
+def test_pending_configuration_snapshot_is_read_only_and_sorted(tmp_path,monkeypatch):
+    adapter,journal,plan,calls,pending,_=pending_consent_adapter(tmp_path,monkeypatch)
+    assert adapter.pending_configuration(plan,journal)=={'digest':'original','modules':['fstab','samba']}
+    assert ('packages',False) in calls and ('schemas',{'raid':False}) in calls
+    assert journal.snapshot()==[] and pending==['samba','fstab']
+    assert not any(c[0]=='config_apply' for c in calls)
+
+
+@pytest.mark.parametrize('occupied',['checkpoint','operation'])
+def test_pending_configuration_unavailable_after_provisioning_started(tmp_path,monkeypatch,occupied):
+    adapter,journal,plan,calls,_,_=pending_consent_adapter(tmp_path,monkeypatch)
+    if occupied=='checkpoint':(journal.directory/'omv-config-checkpoint.json').write_text('{}')
+    else:journal.perform('adapter.owner',lambda:{'id':'owned'})
+    assert adapter.pending_configuration(plan,journal) is None
+    assert not any(c[0] in ('config_dirty_modules','config_apply') for c in calls)
+
+
+@pytest.mark.parametrize('change',['digest','modules','clean'])
+def test_pending_configuration_rejects_stale_approval(tmp_path,monkeypatch,change):
+    adapter,journal,plan,calls,pending,digest=pending_consent_adapter(tmp_path,monkeypatch)
+    expected=adapter.pending_configuration(plan,journal)
+    if change=='digest':digest[0]='changed'
+    elif change=='modules':pending.append('systemd-networkd')
+    else:pending.clear()
+    with pytest.raises(SetupError,match='omv_configuration_changed'):
+        adapter.apply_pending_configuration(plan,journal,expected)
+    assert not any(c[0]=='config_apply' for c in calls)
+
+
+def test_pending_configuration_rechecks_digest_during_snapshot(tmp_path,monkeypatch):
+    adapter,journal,plan,calls,_,digest=pending_consent_adapter(tmp_path,monkeypatch)
+    original=adapter._rpc
+    def rpc(op,params=None):
+        result=original(op,params)
+        if op=='config_dirty_modules':digest[0]='changed'
+        return result
+    adapter._rpc=rpc
+    with pytest.raises(SetupError,match='omv_configuration_changed'):adapter.pending_configuration(plan,journal)
+    assert not any(c[0]=='config_apply' for c in calls)
+
+
+def test_pending_configuration_applies_exact_approved_modules_then_checks_disks(tmp_path,monkeypatch):
+    adapter,journal,plan,calls,pending,_=pending_consent_adapter(tmp_path,monkeypatch)
+    expected=adapter.pending_configuration(plan,journal)
+    adapter.apply_pending_configuration(plan,journal,expected)
+    apply=('config_apply',{'modules':['fstab','samba'],'force':False})
+    assert calls.count(apply)==1 and calls.index(apply)<calls.index(('target_check',None))
+    assert pending==[] and journal.snapshot()==[]
+
+
+def test_pending_configuration_blocks_changed_target_after_apply(tmp_path,monkeypatch):
+    adapter,journal,plan,calls,_,_=pending_consent_adapter(tmp_path,monkeypatch)
+    expected=adapter.pending_configuration(plan,journal)
+    def changed_target(*a,**kw):raise SetupError('storage_changed')
+    adapter._check_target=changed_target
+    with pytest.raises(SetupError,match='storage_changed'):
+        adapter.apply_pending_configuration(plan,journal,expected)
+    assert sum(c[0]=='config_apply' for c in calls)==1
+
+
+def test_pending_configuration_clean_host_has_no_consent_action(tmp_path,monkeypatch):
+    adapter,journal,plan,_,pending,_=pending_consent_adapter(tmp_path,monkeypatch)
+    pending.clear()
+    assert adapter.pending_configuration(plan,journal) is None
+
+
+def test_pending_configuration_requires_clean_deployment_before_target_review(tmp_path,monkeypatch):
+    adapter,journal,plan,calls,_,_=pending_consent_adapter(tmp_path,monkeypatch)
+    expected=adapter.pending_configuration(plan,journal)
+    original=adapter._rpc
+    def still_dirty(op,params=None):
+        return True if op=='config_dirty' else original(op,params)
+    adapter._rpc=still_dirty
+    with pytest.raises(SetupError,match='omv_configuration_changed'):
+        adapter.apply_pending_configuration(plan,journal,expected)
+    assert not any(c[0]=='target_check' for c in calls)
+
+
+def test_pending_configuration_rejects_xml_change_during_apply(tmp_path,monkeypatch):
+    adapter,journal,plan,calls,_,digest=pending_consent_adapter(tmp_path,monkeypatch)
+    expected=adapter.pending_configuration(plan,journal)
+    original=adapter._rpc
+    def concurrent_edit(op,params=None):
+        result=original(op,params)
+        if op=='config_apply':digest[0]='edited-during-deployment'
+        return result
+    adapter._rpc=concurrent_edit
+    with pytest.raises(SetupError,match='omv_configuration_changed'):
+        adapter.apply_pending_configuration(plan,journal,expected)
+    assert sum(c[0]=='config_apply' for c in calls)==1
+    assert not any(c[0]=='target_check' for c in calls)

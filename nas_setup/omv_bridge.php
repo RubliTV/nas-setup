@@ -29,6 +29,7 @@ try {
         'smb_share_set' => ['SMB', 'setShare'],
         'smb_share_get' => ['SMB', 'getShare'],
         'config_dirty' => ['Config', 'isDirty'],
+        'config_dirty_modules' => ['System', 'getInformation'],
         'config_apply' => ['Config', 'applyChanges'],
         'exec_output' => ['Exec', 'getOutput']
     ];
@@ -51,6 +52,10 @@ try {
     }
     [$service, $method] = $allowed[$request['operation']];
     $result = \OMV\Rpc\Rpc::call($service, $method, $request['params'], $context, \OMV\Rpc\Rpc::MODE_REMOTE);
+    if ($request['operation'] === 'config_dirty_modules') {
+        $result = array_keys($result['dirtyModules']);
+        sort($result, SORT_STRING);
+    }
     // OMV may return complete user objects; passwords never cross back to job state.
     if ($request['operation'] === 'user_set' && is_array($result)) {
         $result = ['name' => $result['name']];

@@ -36,3 +36,29 @@ Storage release gate: all approved disposable OMV matrix cases passed, including
 Final package validation: candidate c2301d9eaf7afa14df87b552f4976413e798bcbe25b4576041092330ea9d728b passed the real HTTPS wizard under restrictive root umask0077, starting without MD installed. It installed exact MD8.1.6-1, created a healthy RAID1 mirror plus sharing users/folder, removed temporary credentials, stopped only installer services at Finish while SMB continued, and reopened with fresh authentication and preserved setup. A prior snapshot clock rollback was corrected without bypassing package signatures. The real restrictive-umask bootstrap bug was fixed in ceaed60 with observed failing/passing filesystem+venv regression and independent review. Fresh suites:118 tests on Python3.12 and3.15; unchanged bilingual browser flow passes. Final release rebuild may update docs only and must match all29 tested runtime hashes. Physical J1800 and full optional-app tests remain outstanding.
 
 Publication ruling: publish the validated immutable v0.2.0 prerelease from the reviewed implementation branch under the existing RubliTV publication authorization. Retain the ready PR for review and leave the earlier v0.1.0 release unchanged.
+
+## v0.2.1 recovery patch, in progress
+
+- User hardware diagnosis: prerequisites succeeded, storage_setup failed with
+  omv_configuration_changed, no operations/checkpoint, config dirty.
+- Correction: MD postinst marks mdadm dirty for older-version upgrades, NOT
+  fresh installs (lt-nl treats an empty version as later). The clean old-release
+  VM progressed into storage; user pending-module origin remains unconfirmed.
+- Ruling: saved job retains initial exact-plan consent across retry/login/restart,
+  as requested; every retry revalidates ownership and targets. No new job can use
+  that consent. Spec amended explicitly; passwords remain transient.
+- Engine red: two regressions failed (plan_missing and missing recovery check).
+  Green: 17 orchestration tests. Browser red: legacy retry redirected to review;
+  green after removing redirect and clearing accepted retry passwords.
+- Narrow mdadm deployment repair and state-preserving updater in implementation;
+  live old-release failure -> upgrade -> resume test prepared.
+
+- Completed: 163 Python tests on 3.12 and 3.15; Chrome bilingual/mobile retry and
+  inline pending approval pass. Independent reviews clean after two scoped fixes.
+- Live old release did not reproduce first-install hypothesis; corrected source
+  interpretation, then used explicit mdadm/fstab dirty-marker injection.
+- Live upgrade recovered that failed job through native OMV application without
+  new disk/ERASE consent; healthy RAID1/users/share, Finish/SMB/reopen passed.
+- Final runtime 63350a5f… updated the completed job without state/config/certificate
+  changes; mdadm-only automatic repair also passed. Evidence archived in tests.
+- Ready for immutable v0.2.1 release; v0.1/v0.2.0 assets remain unchanged.

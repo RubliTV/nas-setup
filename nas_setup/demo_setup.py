@@ -18,6 +18,8 @@ class DemoProvisioner:
     def review_recovery(self,plan,journal):
         return None
 
+    def pending_configuration(self,plan,journal):return None
+
     def prepare(self,selection,plan):time.sleep(self.system.delay)
 
     def provision(self,selection,plan,journal,passwords):

@@ -114,13 +114,13 @@ def test_changed_recovery_state_invalidates_new_consent(tmp_path,monkeypatch):
         request(e,'resume',{'plan_id':p['plan_id'],**consent})
 
 
-def test_paused_job_consent_does_not_transfer_to_another_session(tmp_path,monkeypatch):
+def test_authenticated_session_can_resume_exact_saved_paused_job(tmp_path,monkeypatch):
     e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
     p=request(e,'plan',selection());credentials={'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}
     job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE','erase_disks':['demo-disk-1','demo-disk-2'],'passwords':credentials})
     e.store.update(job['id'],status='paused')
-    with pytest.raises(SetupError,match='plan_missing'):
-        request(e,'resume',{'passwords':credentials},'new-session')
+    resumed=request(e,'resume',{'passwords':credentials},'new-session')
+    assert resumed['id']==job['id'] and resumed['selection']==job['selection']
 
 
 @pytest.mark.parametrize('operation',['job','finish'])
@@ -165,3 +165,69 @@ def test_recovery_after_completed_format_requires_no_new_erasure(tmp_path,monkey
 def test_invalid_account_password_rejected_before_storage(value):
     from nas_setup.setup_engine import SetupStart
     with pytest.raises(ValueError):SetupStart(passwords={'ana':value})
+
+
+def test_failed_job_resumes_original_authorized_plan_after_restart(tmp_path,monkeypatch):
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection());credentials={'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE','erase_disks':['demo-disk-1','demo-disk-2'],'passwords':credentials})
+    e.store.step(job['id'],'storage_prerequisites','succeeded')
+    e.store.step(job['id'],'storage_setup','failed')
+    e.store.update(job['id'],status='failed',error='omv_configuration_changed')
+    restarted=engine(tmp_path);monkeypatch.setattr(restarted.wizard,'_launch',lambda job:None)
+    result=request(restarted,'resume',{'passwords':credentials},'new-authenticated-session')
+    assert result['id']==job['id'] and result['status']=='running'
+    assert result['selection']==job['selection']
+
+
+def test_retry_checks_recovery_even_with_same_session_grant(tmp_path,monkeypatch):
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection());credentials={'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE','erase_disks':['demo-disk-1','demo-disk-2'],'passwords':credentials})
+    e.store.update(job['id'],status='failed')
+    def uncertain(plan,journal):raise SetupError('recovery_required')
+    monkeypatch.setattr(e.wizard.provisioner,'review_recovery',uncertain)
+    with pytest.raises(SetupError,match='recovery_required'):
+        request(e,'resume',{'passwords':credentials})
+    assert e.store.get()['status']=='failed'
+
+
+def test_pending_configuration_requires_job_and_session_bound_approval(tmp_path,monkeypatch):
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    credentials={'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}
+    p=request(e,'plan',selection())
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE','erase_disks':['demo-disk-1','demo-disk-2'],'passwords':credentials})
+    e.store.step(job['id'],'storage_prerequisites','succeeded')
+    e.store.update(job['id'],status='failed',error='omv_configuration_changed')
+    pending={'digest':'approved-config','modules':['fstab','mdadm']}
+    monkeypatch.setattr(e.wizard.provisioner,'pending_configuration',lambda plan,journal:dict(pending),raising=False)
+    offer=request(e,'recovery',{})
+    assert offer['modules']==['fstab','mdadm'] and 'digest' not in offer
+    with pytest.raises(SetupError,match='confirmation_required'):
+        request(e,'resume',{'pending_id':offer['pending_id'],'passwords':credentials},'other-session')
+    e.wizard.pending_offers[offer['pending_id']]['expires']=0
+    with pytest.raises(SetupError,match='omv_configuration_changed'):
+        request(e,'resume',{'pending_id':offer['pending_id'],'passwords':credentials})
+    e.wizard.pending_offers[offer['pending_id']]['expires']=time.time()+900
+    pending['digest']='external-change'
+    with pytest.raises(SetupError,match='omv_configuration_changed'):
+        request(e,'resume',{'pending_id':offer['pending_id'],'passwords':credentials})
+    assert e.store.get()['status']=='failed'
+    pending['digest']='approved-config'
+    resumed=request(e,'resume',{'pending_id':offer['pending_id'],'passwords':credentials})
+    assert resumed['id']==job['id'] and resumed['status']=='running'
+    calls=[]
+    monkeypatch.setattr(e.wizard.provisioner,'apply_pending_configuration',lambda plan,journal,snapshot:calls.append(snapshot),raising=False)
+    e.wizard._run(resumed)
+    assert calls==[{'digest':'approved-config','modules':['fstab','mdadm']}]
+    assert not e.wizard.pending_runs
+
+
+def test_pending_configuration_offer_requires_csrf_and_authenticated_session(tmp_path):
+    from fastapi.testclient import TestClient
+    from nas_setup.web import create_app
+    e=engine(tmp_path);client=TestClient(create_app(e,tmp_path/'web','http://127.0.0.1:8765',demo=True),base_url='http://127.0.0.1:8765')
+    assert client.post('/api/setup/recovery',json={}).status_code==401
+    auth=client.post('/api/demo-login').json()
+    assert client.post('/api/setup/recovery',json={}).status_code==403
+    assert client.post('/api/setup/recovery',json={},headers={'X-CSRF-Token':auth['csrf']}).json()['error']=='job_missing'

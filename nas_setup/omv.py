@@ -146,9 +146,9 @@ class OmvProvisioner:
         selection=SetupSelection.model_validate(selection).model_dump()
         if selection!=plan.get('selection'):raise SetupError('storage_changed')
         if not self.system.inventory().get('supported'):raise SetupError('unsupported_host')
-        if self._rpc('config_dirty',{'modules':[]}):raise SetupError('omv_configuration_changed')
-        self._preflight_conflicts(selection)
         raid=selection['storage']['mode'].startswith('raid')
+        self._settle_prerequisites(raid)
+        self._preflight_conflicts(selection)
         packages=['acl','samba','e2fsprogs','gdisk']+(['openmediavault-md','mdadm'] if raid else [])
         self.system.run(['apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install',*packages],timeout=1800)
         self._verify_packages(raid)
@@ -156,7 +156,49 @@ class OmvProvisioner:
         for command in ('lsblk','findmnt','getfacl','getent','id','testparm'):
             self.system.run(['/usr/bin/which',command])
         if raid:self._rpc('md_candidates')
-        self._config_digest=self._digest()
+        self._config_digest=self._settle_prerequisites(raid)
+
+    def _settle_prerequisites(self,raid):
+        """Deploy only the known MD package post-install configuration."""
+        actual=self._digest()
+        if not self._rpc('config_dirty',{'modules':[]}):return actual
+        if not raid:raise SetupError('omv_configuration_changed')
+        self._verify_packages(True)
+        verify_schemas(raid=True)
+        if self._rpc('config_dirty_modules')!=['mdadm'] or self._digest()!=actual:
+            raise SetupError('omv_configuration_changed')
+        # Never use modules=[] here: a package install does not authorize
+        # deploying unrelated pending Samba, network or other OMV settings.
+        self._rpc('config_apply',{'modules':['mdadm'],'force':False})
+        if self._digest()!=actual or self._rpc('config_dirty',{'modules':[]}):
+            raise SetupError('omv_configuration_changed')
+        return actual
+
+    def pending_configuration(self,plan,journal):
+        """Read-only snapshot for separately authorized pending deployment."""
+        self._require_validated()
+        raid=plan['selection']['storage']['mode'].startswith('raid')
+        self._verify_packages(raid)
+        verify_schemas(raid=raid)
+        checkpoint=journal.directory/'omv-config-checkpoint.json'
+        if checkpoint.exists() or checkpoint.is_symlink() or journal.snapshot():return None
+        actual=self._digest()
+        modules=self._rpc('config_dirty_modules')
+        if not isinstance(modules,list) or any(not isinstance(m,str) or not m for m in modules):
+            raise SetupError('omv_rpc_failed')
+        if self._digest()!=actual:raise SetupError('omv_configuration_changed')
+        return {'digest':actual,'modules':sorted(set(modules))} if modules else None
+
+    def apply_pending_configuration(self,plan,journal,expected):
+        """Called only after the engine verifies explicit viewer approval."""
+        current=self.pending_configuration(plan,journal)
+        if current is None or current!=expected:raise SetupError('omv_configuration_changed')
+        self._rpc('config_apply',{'modules':current['modules'],'force':False})
+        if self._rpc('config_dirty',{'modules':[]}) or self._digest()!=expected['digest']:
+            raise SetupError('omv_configuration_changed')
+        # An approved fstab deployment can change mounts. Never continue
+        # provisioning until the original target identities are rechecked.
+        self.review_recovery(plan,journal)
 
     def _verify_packages(self,raid):
         for package,version in VALIDATED_PACKAGES.items():
@@ -320,14 +362,18 @@ class OmvProvisioner:
             if records.get(key+'.dispatch') and not wiped:raise SetupError('recovery_required')
             self._check_target(target,blank=bool(wiped))
 
-    def _start_context(self,journal):
+    def _start_context(self,journal,raid=False):
         self._context_path=journal.directory/'omv-config-checkpoint.json'
         if self._context_path.is_symlink():raise SetupError('unsafe_storage')
         actual=self._digest()
         if self._context_path.exists():
             saved=json.loads(self._context_path.read_text())
             if saved.get('digest')!=actual:raise SetupError('omv_configuration_changed')
-        elif self._rpc('config_dirty',{'modules':[]}):raise SetupError('omv_configuration_changed')
+        elif self._rpc('config_dirty',{'modules':[]}):
+            # v0.2 could finish prerequisites with mdadm pending, then stop
+            # before creating the checkpoint or dispatching any operation.
+            if journal.snapshot():raise SetupError('omv_configuration_changed')
+            if self._settle_prerequisites(raid)!=actual:raise SetupError('omv_configuration_changed')
         self._config_digest=actual
         self._save_context()
 
@@ -551,7 +597,7 @@ class OmvProvisioner:
         selected=SetupSelection.model_validate(selection).model_dump()
         if selected!=plan.get('selection'):raise SetupError('storage_changed')
         self._verify_packages(selected['storage']['mode'].startswith('raid'))
-        self._start_context(journal)
+        self._start_context(journal,raid=selected['storage']['mode'].startswith('raid'))
         owner=journal.perform('adapter.owner',lambda:{'id':uuid.uuid4().hex})['id']
         storage=selected['storage'];targets=plan.get('targets',[]);md=None
         if storage['mode']=='existing':volume=self._mounted(storage['volume'])

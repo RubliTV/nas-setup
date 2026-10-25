@@ -12,7 +12,7 @@
   <li data-step="review"><span>04</span><div data-i18n="navReview"></div></li>
   <li data-step="progress"><span>05</span><div data-i18n="navInstall"></div></li>
  </ol></nav>
- <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.2</span></div>
+ <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.2.1</span></div>
 </aside>
 <div class="workspace">
  <header><div class="breadcrumb">NAS Setup <span>/</span> <span data-i18n="setup"></span></div><div class="languages" aria-label="Language"><button id="lang-pt" type="button">Português</button><button id="lang-en" type="button">English</button></div></header>
@@ -64,11 +64,12 @@
    <div class="panel progress-panel"><div class="progress-top"><strong id="progress-caption"></strong><span id="progress-percent"></span></div><progress id="progress-bar" max="100" value="0"></progress><ol id="job-steps" class="job-steps"></ol></div>
    <div id="tailscale-pair" class="panel" hidden><h2 data-i18n="tailscalePair"></h2><p data-i18n="tailscalePairHint"></p><a id="tailscale-link" class="primary" target="_blank" rel="noopener noreferrer" data-i18n="tailscaleLogin" hidden></a><button id="check-tailscale" class="secondary" data-i18n="checkAgain"></button></div>
    <div id="raid-status" class="note" hidden role="status"></div><div id="results" class="result-grid"></div><div id="resume-credentials" class="panel" hidden><h2 data-i18n="resumeCredentials"></h2><p class="hint" data-i18n="resumeCredentialsHint"></p><div id="resume-passwords"></div></div>
+   <div id="pending-config" class="panel" hidden><h2 data-i18n="pendingTitle"></h2><p data-i18n="pendingHint"></p><ul id="pending-modules"></ul><button id="apply-pending" class="primary" data-i18n="applyPending"></button></div>
    <div id="job-error" class="error" hidden></div>
    <div class="actions"><span class="muted" data-i18n="closeBrowser"></span><div class="action-buttons"><button id="pause" class="secondary" data-i18n="pause"></button><button id="resume" class="primary" data-i18n="resume" hidden></button><button id="finish" class="primary" data-i18n="finish" hidden></button></div></div>
   </section>
   <section id="screen-finished" class="screen" hidden><div class="eyebrow" data-i18n="finishedEyebrow"></div><h1 data-i18n="finishedTitle"></h1><p class="lead" data-i18n="finishedDescription"></p><div class="panel"><code>sudo nas-setup reopen</code></div></section>
-  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.2.0</span></footer>
+  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.2.1</span></footer>
  </main>
 </div>
 </body></html>
