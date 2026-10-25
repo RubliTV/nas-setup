@@ -138,3 +138,9 @@ restored Radarr/Sonarr automatically while explicitly stopped Prowlarr remained
 stopped; starting Prowlarr afterward restored HTTP availability. Existing stopped
 Immich identities and states were preserved. Physical J1800 performance remains
 unmeasured; see the separate live validation record and sanitized evidence.
+
+Published immutable RubliTV v0.3.0 prerelease from
+83d10835a496b4aabea2ae7c6528b58a5a613291. All three public assets match local
+verified files; the archive manifest covers 55 files. Archive SHA-256:
+9bd60e3c43c2f9e7faa267a458f8e58fc99fc07f498306136ec0be98294b8a58.
+PR #1 was updated and remains open; main was not merged. Disposable VM is off.

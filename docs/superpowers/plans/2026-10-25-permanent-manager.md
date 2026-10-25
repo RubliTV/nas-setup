@@ -55,7 +55,7 @@ Files: version metadata, updater, README, validation document, PROGRESS.
 - [x] Update to 0.3.0 with prior versions accepted; preserve manager credentials/jobs.
 - [x] Verify update blocks active manager operations as well as wizard work.
 - [x] Run all tests, package manifest verification and independent full review.
-- [ ] Publish RubliTV prerelease, update PR, verify public assets; provide update command.
+- [x] Publish RubliTV prerelease, update PR, verify public assets; provide update command.
 
 ## Execution ledger
 User explicitly authorized implementation; no redundant plan-approval stop.
