@@ -40,6 +40,69 @@ DEMO_EXTERNAL=hashlib.sha256(b'nas-manager-demo-external').hexdigest()
 CONTAINER=re.compile(r'[a-f0-9]{12,64}\Z')
 
 
+UNIT_DIRECTORY=Path('/etc/systemd/system')
+
+
+def _host_run(system,args,timeout=60):
+    result=system.run(args,timeout=timeout,check=False)
+    if result.returncode:raise SetupError('manager_command_failed')
+    return result.stdout
+
+
+def guarded_configuration(directory,record):
+    """Derive the supervised config from the approved plan, never from inspect."""
+    stage=directory/'manager-plans'/(record['name']+'.json')
+    original=directory/'manager-projects'/record['name']/'compose.yml'
+    for path in (stage,original):
+        require(path.is_file() and path.resolve()==path and path.stat().st_uid==os.getuid() and not path.stat().st_mode&0o077,'unsafe_storage')
+    plan=json.loads(stage.read_text())
+    require(plan['name']==record['name'] and plan['record']['owner']==record['owner'] and plan['record']['services']==record['services'],'existing_installation')
+    require(original.read_text()==compose_text(plan['config']),'existing_installation')
+    config=plan['config']
+    validate_supervised_lifecycle(config)
+    for service in config['services'].values():service['restart']='no'
+    return config
+
+
+def validate_supervised_lifecycle(config):
+    """Bound imports support long-running stacks only, restarted as one app.
+
+    Every service must explicitly request always/unless-stopped. Compose's
+    omitted/no/on-failure policies and successful one-shot init dependencies
+    cannot be represented by this bounded supervisor and fail before writes.
+    Named-volume-only imports retain native Docker lifecycle semantics.
+    """
+    for service in config['services'].values():
+        require(service.get('restart','no') in ('always','unless-stopped'),'compose_lifecycle_unsupported')
+        dependencies=service.get('depends_on',{})
+        if isinstance(dependencies,dict):require(all(condition.get('condition')!='service_completed_successfully' for condition in dependencies.values()),'compose_lifecycle_unsupported')
+
+
+def unit_quote(value):
+    value=str(value);require(not any(ord(c)<32 for c in value),'unsafe_storage')
+    return '"'+value.replace('\\','\\\\').replace('"','\\"').replace('%','%%').replace('$','$$')+'"'
+
+
+def container_info(system,identity):
+    require(isinstance(identity,str) and bool(CONTAINER.fullmatch(identity)),'container_invalid')
+    # Intentionally exclude environment, command and arbitrary labels.
+    fmt='{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"state":{{json .State.Status}},"exit_code":{{json .State.ExitCode}},"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}"none"{{end}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"service":{{json (index .Config.Labels "com.docker.compose.service")}},"owner":{{json (index .Config.Labels "io.nas-manager.owner")}},"ports":{{json .NetworkSettings.Ports}},"mounts":{{json .Mounts}}}'
+    raw=_host_run(system,['docker','inspect','--format',fmt,identity]);require(len(raw)<=65536,'container_too_large')
+    return json.loads(raw)
+
+
+def guard_record(system,record,allow_create=False):
+    inventory=system.inventory()
+    for identity,path in record['mounts'].items():require(str(volume_path(identity,inventory))==path,'storage_changed')
+    config=record.get('config')
+    services=config['services'] if config else {k:{'volumes':v['mounts']} for k,v in record['services'].items()}
+    for service in services.values():
+        for mount in service.get('volumes',[]):
+            if mount['type']!='bind':continue
+            path=Path(mount['source']);require(path.resolve()==path,'unsafe_storage')
+            require(path.is_dir() or allow_create and str(path) in record.get('create',[]),'unsafe_storage')
+
+
 class Manager:
     def __init__(self,engine):
         self.engine=engine;self.system=engine.system
@@ -106,12 +169,7 @@ class Manager:
         except (ValueError,TypeError,KeyError,AttributeError,RecursionError):raise SetupError('operation_invalid') from None
         except OSError:raise SetupError('manager_storage_failed') from None
 
-    def _run(self,args,timeout=60):
-        # check=False prevents System.run from writing secret-bearing command
-        # output into diagnostics. Only stable error codes leave this boundary.
-        result=self.system.run(args,timeout=timeout,check=False)
-        if result.returncode:raise SetupError('manager_command_failed')
-        return result.stdout
+    def _run(self,args,timeout=60):return _host_run(self.system,args,timeout)
 
     def docker(self):
         if self.system.demo:return True
@@ -171,14 +229,10 @@ class Manager:
     def _save_project(self,record):
         with self.connect() as c:c.execute('INSERT OR REPLACE INTO projects VALUES(?,?)',(record['name'],json.dumps(record)))
 
-    def _inspect(self,identity):
-        require(isinstance(identity,str) and bool(CONTAINER.fullmatch(identity)),'container_invalid')
-        # Intentionally exclude environment, command and arbitrary labels.
-        fmt='{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"state":{{json .State.Status}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"service":{{json (index .Config.Labels "com.docker.compose.service")}},"owner":{{json (index .Config.Labels "io.nas-manager.owner")}},"ports":{{json .NetworkSettings.Ports}},"mounts":{{json .Mounts}}}'
-        raw=self._run(['docker','inspect','--format',fmt,identity]);require(len(raw)<=65536,'container_too_large')
-        return json.loads(raw)
+    def _inspect(self,identity):return container_info(self.system,identity)
 
-    def _owned(self,info,projects):
+    @staticmethod
+    def _owned(info,projects):
         record=projects.get(info.get('project'))
         if record and secrets.compare_digest(str(info.get('owner') or ''),record['owner']):
             config=record['services'].get(info.get('service'))
@@ -207,7 +261,7 @@ class Manager:
                 if binding.get('HostPort','').isdigit():ports.append({'host':int(binding['HostPort']),'container':int(number),'protocol':protocol})
         return {'id':info['id'],'name':str(info['name']).lstrip('/')[:100],'image':str(info['image'])[:256],
             'state':info['state'],'status':info['state'],'project':str(info.get('project') or '')[:100],
-            'managed':bool(owned or legacy),'actions':['start','stop','restart']+(['update'] if owned else []),
+            'managed':bool(owned or legacy),'action_scope':'app' if legacy or owned and owned.get('mounts') else 'container','actions':['start','stop','restart']+(['update'] if owned else []),
             'ports':ports[:32],'cpu':'—','memory':'—'}
 
     def overview(self,offset=0):
@@ -218,18 +272,18 @@ class Manager:
             for record in projects.values():
                 for name,s in record['services'].items():
                     identity=hashlib.sha256((record['name']+name).encode()).hexdigest()
-                    containers.append({'id':identity,'name':name,'image':s['image'],'state':record.get('state','running'),
-                        'status':record.get('state','running'),'project':record['name'],'managed':True,
+                    containers.append({'id':identity,'name':name,'image':s['image'],'state':record.get('states',{}).get(name,record.get('state','running')),
+                        'status':record.get('states',{}).get(name,record.get('state','running')),'project':record['name'],'managed':True,'action_scope':'app' if record.get('mounts') else 'container',
                         'actions':['start','stop','restart','update'],'ports':s['ports'],'cpu':'0.0%','memory':'64 MiB'})
             containers.append({'id':DEMO_EXTERNAL,'name':'example-external','image':'nginx:1.28','state':self._demo_state(),
-                'status':self._demo_state(),'project':'','managed':False,'actions':['start','stop','restart'],
+                'status':self._demo_state(),'project':'','managed':False,'action_scope':'container','actions':['start','stop','restart'],
                 'ports':[{'host':18081,'container':80,'protocol':'tcp'}],'cpu':'0.0%','memory':'8 MiB'})
         else:
             all_ids=self._run(['docker','ps','-aq','--no-trunc']).split();total=len(all_ids)
             identities=all_ids[offset:offset+64]
             for identity in identities:
                 try:
-                    info=self._inspect(identity);containers.append(self._public(info,bool(self._owned(info,projects)),bool(self._legacy(info))))
+                    info=self._inspect(identity);containers.append(self._public(info,self._owned(info,projects),bool(self._legacy(info))))
                 except SetupError:continue
             if identities:
                 try:
@@ -291,6 +345,7 @@ class Manager:
             if result['needs']:return {'valid':False,'needs':result['needs'],'summary':None}
             config=result['config'];summary=result['summary']
         else:raise SetupError('operation_invalid')
+        if any(mount['type']=='bind' for service in config['services'].values() for mount in service.get('volumes',[])):validate_supervised_lifecycle(config)
         name='nas-manager-'+name;require(name not in self._projects(),'existing_installation')
         if not self.system.demo:
             require(not self._run(['docker','ps','-aq','--filter','label=com.docker.compose.project='+name]).strip(),'existing_installation')
@@ -354,16 +409,7 @@ class Manager:
                     if status=='running':step['started_at']=time.time()
             c.execute('UPDATE jobs SET body=? WHERE id=?',(json.dumps(job),identity))
 
-    def _guard(self,record,allow_create=False):
-        inventory=self.system.inventory()
-        for identity,path in record['mounts'].items():require(str(volume_path(identity,inventory))==path,'storage_changed')
-        config=record.get('config')
-        services=config['services'] if config else {k:{'volumes':v['mounts']} for k,v in record['services'].items()}
-        for service in services.values():
-            for mount in service.get('volumes',[]):
-                if mount['type']!='bind':continue
-                path=Path(mount['source']);require(path.resolve()==path,'unsafe_storage')
-                require(path.is_dir() or allow_create and str(path) in record.get('create',[]),'unsafe_storage')
+    def _guard(self,record,allow_create=False):guard_record(self.system,record,allow_create)
 
     def _write(self,path,text):
         """Publish a complete private file without overwriting any existing file."""
@@ -396,6 +442,59 @@ class Manager:
                 path.mkdir(mode=0o700)
                 if not self.system.demo:os.chown(path,plan['user']['uid'],plan['user']['gid'])
 
+    def _install_supervision(self,record):
+        """Bind projects have one restart owner, independent of Docker startup."""
+        config=guarded_configuration(self.directory,record)
+        cfg=self.projects/record['name']/'guarded.yml';text=compose_text(config)
+        if cfg.exists() or cfg.is_symlink():require(cfg.is_file() and cfg.resolve()==cfg and cfg.read_text()==text,'existing_installation')
+        else:self._write(cfg,text)
+        units=[]
+        for root in sorted(set(record['mounts'].values())):
+            unit=self._run(['systemd-escape','--path','--suffix=mount',root]).strip()
+            require(bool(re.fullmatch(r'[A-Za-z0-9_.:\\-]+\.mount',unit)),'unsafe_storage');units.append(unit)
+        unit_name=record['name']+'.service';target=UNIT_DIRECTORY/unit_name
+        unit='[Unit]\nDescription=NAS Manager guarded application\nRequires=docker.service\nBindsTo={mounts}\nAfter=docker.service network-online.target {mounts}\nStartLimitIntervalSec=0\n[Service]\nType=simple\nExecStart=/opt/nas-setup/venv/bin/python -m nas_setup.manager --stack-run {directory} {name}\nExecStop=/usr/bin/docker compose --project-name {name} -f {config} stop\nRestart=always\nRestartSec=15\nTimeoutStopSec=120\nStandardOutput=null\nStandardError=null\n[Install]\nWantedBy=multi-user.target\n'.format(mounts=' '.join(units),directory=unit_quote(self.directory),name=record['name'],config=unit_quote(cfg))
+        if target.exists() or target.is_symlink():require(target.is_file() and not target.is_symlink() and target.read_text()==unit,'existing_installation')
+        else:self._write(target,unit)
+        self._run(['systemctl','daemon-reload'])
+        # Upgrade pre-release manager containers only after strict ownership
+        # checks; external containers never have restart policies changed.
+        identities=self._run(['docker','ps','-aq','--no-trunc','--filter','label=com.docker.compose.project='+record['name']]).split()
+        for identity in identities:
+            require(self._owned(self._inspect(identity),{record['name']:record}) is not None,'existing_installation')
+            self._run(['docker','update','--restart=no',identity])
+        return cfg,unit_name
+
+    def _wait_supervised(self,record,cfg,timeout=180):
+        config=guarded_configuration(self.directory,record)
+        deadline=time.monotonic()+timeout
+        while time.monotonic()<deadline:
+            self._guard(record)
+            identities=self._run(['docker','compose','--project-name',record['name'],'-f',str(cfg),'ps','-aq']).split()
+            ready=set()
+            for identity in identities:
+                info=self._inspect(identity);require(self._owned(info,{record['name']:record}) is not None,'existing_installation')
+                service=info['service']
+                if info['state']=='running' and info.get('health','none') in ('none','healthy'):ready.add(service)
+                elif info.get('health')=='unhealthy' or info['state']=='dead':raise SetupError('health_failed')
+            if ready==set(record['services']):return
+            time.sleep(2)
+        raise SetupError('health_failed')
+
+    def _start_supervised(self,record,recreate=False,action='start'):
+        self._guard(record)
+        cfg,unit=self._install_supervision(record)
+        if action=='restart':
+            self._run(['systemctl','stop',unit],timeout=180)
+            self._run(['docker','compose','--project-name',record['name'],'-f',str(cfg),'stop'],timeout=180)
+        if recreate:
+            self._run(['systemctl','stop',unit],timeout=180)
+            self._guard(record)
+            self._run(['docker','compose','--project-name',record['name'],'-f',str(cfg),'create','--no-build'],timeout=180)
+        self._run(['systemctl','enable',unit])
+        self._run(['systemctl',action,unit],timeout=180)
+        self._wait_supervised(record,cfg)
+
     def _deployment_work(self,plan):
         record=plan['record'];config=plan['config'];project=self.projects/plan['name']
         def work(phase):
@@ -419,7 +518,9 @@ class Manager:
                 if not self.system.demo:self._run(['docker','compose','--project-name',record['name'],'-f',str(project/'compose.yml'),'pull'],timeout=1800)
             elif phase=='start':
                 self._guard(record)
-                if not self.system.demo:self._run(['docker','compose','--project-name',record['name'],'-f',str(project/'compose.yml'),'up','-d','--no-build','--wait','--wait-timeout','180'],timeout=240)
+                if not self.system.demo:
+                    if record['mounts']:self._start_supervised(record,recreate=True)
+                    else:self._run(['docker','compose','--project-name',record['name'],'-f',str(project/'compose.yml'),'up','-d','--no-build','--wait','--wait-timeout','180'],timeout=240)
         return work
 
     def deploy(self,data,session):
@@ -473,12 +574,28 @@ class Manager:
                 if self.system.demo:
                     if phase=='apply':
                         state='exited' if action=='stop' else 'running'
-                        if record:record['state']=state;self._save_project(record)
+                        if record:
+                            if record.get('mounts') or action=='update':record['state']=state;record.pop('states',None)
+                            else:
+                                service=next(name for name in record['services'] if hashlib.sha256((record['name']+name).encode()).hexdigest()==identity)
+                                record.setdefault('states',{})[service]=state
+                            self._save_project(record)
                         else:self._demo_state(state)
                     return
                 if legacy:
                     if action!='stop':self.system.guard_stack(legacy)
                     self._run(['systemctl',action,'nas-app-'+legacy+'.service'],timeout=180)
+                elif record and record['mounts']:
+                    if action=='stop':
+                        cfg,unit=self._install_supervision(record)
+                        self._run(['systemctl','disable',unit])
+                        self._run(['systemctl','stop',unit],timeout=180)
+                        # A pre-release project may never have had an active
+                        # unit, so systemctl stop alone would skip ExecStop.
+                        self._run(['docker','compose','--project-name',record['name'],'-f',str(cfg),'stop'],timeout=180)
+                    elif action=='update' and phase=='pull':
+                        self._run(['docker','compose','--project-name',record['name'],'-f',str(self.projects/record['name']/'compose.yml'),'pull'],timeout=1800)
+                    else:self._start_supervised(record,recreate=action=='update',action='restart' if action=='restart' else 'start')
                 elif action=='update':
                     cfg=self.projects/record['name']/'compose.yml';require(cfg.is_file() and not cfg.is_symlink(),'unsafe_storage')
                     args=['docker','compose','--project-name',record['name'],'-f',str(cfg)]
@@ -532,3 +649,40 @@ class Manager:
         # complete lines mentioning credentials or URLs, including login tokens.
         text='\n'.join('[sensitive log line redacted]' if re.search(r'(?i)pass|secret|token|credential|auth|api.?key|https?://',line) else line for line in text.splitlines())
         return {'text':text[-32768:]}
+
+
+def run_stack(directory,name,system=None):
+    """Root-only systemd entry point. Read-only state; no job recovery or replay."""
+    directory=Path(directory)
+    require(directory.is_absolute() and directory.resolve()==directory and directory.stat().st_uid==os.getuid(),'unsafe_storage')
+    require(isinstance(name,str) and bool(re.fullmatch(r'nas-manager-[a-z][a-z0-9_-]{0,47}',name)),'project_name_invalid')
+    db=directory/'manager.sqlite';require(db.is_file() and db.resolve()==db,'unsafe_storage')
+    with sqlite3.connect(db.as_uri()+'?mode=ro',uri=True) as connection:
+        row=connection.execute('SELECT body FROM projects WHERE name=?',(name,)).fetchone()
+    require(row is not None,'existing_installation');record=json.loads(row[0])
+    require(record.get('mounts'),'unsafe_storage')
+    if system is None:
+        from .system import System
+        system=System(directory)
+    guard_record(system,record)
+    config=guarded_configuration(directory,record)
+    cfg=directory/'manager-projects'/name/'guarded.yml'
+    require(cfg.is_file() and cfg.resolve()==cfg and cfg.read_text()==compose_text(config),'existing_installation')
+    identities=_host_run(system,['docker','ps','-aq','--no-trunc','--filter','label=com.docker.compose.project='+name]).split()
+    for identity in identities:
+        require(Manager._owned(container_info(system,identity),{name:record}) is not None,'existing_installation')
+    guard_record(system,record)
+    os.execv('/usr/bin/docker',['docker','compose','--project-name',name,'-f',str(cfg),'up','--no-build','--no-recreate','--pull','never','--abort-on-container-exit','--no-color'])
+
+
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description='Root-only manager stack mount guard')
+    parser.add_argument('--stack-run',nargs=2,metavar=('WORKER_DIRECTORY','PROJECT'),required=True)
+    args=parser.parse_args()
+    try:
+        require(os.geteuid()==0,'root_required')
+        run_stack(*args.stack_run)
+    except Exception:
+        # Never print configuration, app output or credentials to the journal.
+        raise SystemExit(1) from None

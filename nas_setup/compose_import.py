@@ -146,8 +146,8 @@ def parse_compose(text,variables,roots):
             else:require(isinstance(source,str) and source in volumes,'compose_volume_unsupported')
             converted.append(m)
         if mounts:s['volumes']=converted
-        require(s.get('restart','unless-stopped') in ('no','always','unless-stopped','on-failure'),'compose_invalid')
-        s.setdefault('restart','unless-stopped')
+        require(s.get('restart','no') in ('no','always','unless-stopped','on-failure'),'compose_invalid')
+        s.setdefault('restart','no')
         deps=s.get('depends_on',[])
         require(isinstance(deps,(list,dict)))
         for dep in deps:

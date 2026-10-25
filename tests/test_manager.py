@@ -132,7 +132,7 @@ def test_legacy_owned_stop_uses_systemd_and_logs_hide_secrets(tmp_path):
 def test_plan_deploy_rejects_changed_mount_before_write(tmp_path):
     m=manager(tmp_path);options=call(m,'options')
     media=options['shares'][0]['path']
-    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':f'services: {{web: {{image: "nginx:1.28", volumes: ["{media}:/data"]}}}}'})
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':f'services: {{web: {{image: "nginx:1.28", restart: unless-stopped, volumes: ["{media}:/data"]}}}}'})
     from pathlib import Path
     Path(media).rmdir();Path(media).symlink_to('/etc')
     with pytest.raises(SetupError,match='unsafe_storage'):call(m,'deploy',{'plan_id':plan['plan_id']})
@@ -314,3 +314,121 @@ def test_media_permissions_use_container_uid_gid_without_host_extra_groups(tmp_p
     m._media_permission(tmp_path,{'name':'alice','uid':1001,'gid':100})
     assert all(args[:7]==['setpriv','--reuid','1001','--regid','100','--clear-groups','--'] for args in commands)
     assert {args[-2] for args in commands}=={'-r','-w','-x'}
+
+
+def supervised_host(m,monkeypatch,tmp_path):
+    import nas_setup.manager as module
+    monkeypatch.setattr(module,'UNIT_DIRECTORY',tmp_path/'units',raising=False)
+    (tmp_path/'units').mkdir(exist_ok=True)
+    m.system.demo=False;m.system.docker_available=lambda:True;m.system.check_port=lambda port:None
+    commands=[];state={'running':False}
+    def command(args,timeout=60,check=True):
+        commands.append(args);out=''
+        if args[:2]==['docker','info']:out='29.0'
+        elif args[0]=='systemd-escape':out='srv-data.mount'
+        elif args[:2]==['docker','ps']:out='a'*64 if state['running'] else ''
+        elif args[:2]==['docker','inspect']:
+            r=next(iter(m._projects().values()));name,s=next(iter(r['services'].items()))
+            out=json.dumps({'id':'a'*64,'name':name,'image':s['image'],'state':'running' if state['running'] else 'exited','health':'healthy','exit_code':0,
+                'project':r['name'],'service':name,'owner':r['owner'],'ports':{},'mounts':[{'Type':'bind','Source':v['source'],'Destination':v['target'],'RW':not v['read_only']} for v in s['mounts']]})
+        elif args[:2]==['docker','compose'] and 'ps' in args:out='a'*64
+        elif args[:2] in (['systemctl','start'],['systemctl','restart']) or args[:2]==['systemctl','enable'] and '--now' in args:state['running']=True
+        elif args[:2]==['systemctl','stop']:state['running']=False
+        return SimpleNamespace(stdout=out,stderr='',returncode=0)
+    m.system.run=command
+    return commands,state
+
+
+def test_bound_deployment_uses_mount_supervision_and_no_docker_autostart(tmp_path,monkeypatch):
+    import yaml
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    commands,state=supervised_host(m,monkeypatch,tmp_path)
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    assert job['status']=='succeeded'
+    guarded=m.projects/'nas-manager-prowlarr'/'guarded.yml'
+    assert yaml.safe_load(guarded.read_text())['services']['prowlarr']['restart']=='no'
+    unit=(tmp_path/'units'/'nas-manager-prowlarr.service').read_text()
+    assert 'BindsTo=srv-data.mount' in unit and 'After=docker.service network-online.target srv-data.mount' in unit
+    assert '--stack-run' in unit and str(m.directory) in unit
+    assert 'StandardOutput=null' in unit and 'StandardError=null' in unit
+    assert state['running']
+    assert any(c[:2]==['systemctl','enable'] for c in commands)
+    assert wait(m,call(m,'action',{'id':'a'*64,'action':'stop'}))['status']=='succeeded'
+    assert not state['running']
+    assert ['systemctl','stop','nas-manager-prowlarr.service'] in commands
+    assert ['systemctl','disable','nas-manager-prowlarr.service'] in commands
+    assert ['docker','stop','a'*64] not in commands
+
+
+@pytest.mark.parametrize('change',['missing','replaced'])
+def test_guarded_runner_refuses_missing_or_replaced_volume_without_exec(tmp_path,monkeypatch,change):
+    import nas_setup.manager as module
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    supervised_host(m,monkeypatch,tmp_path)
+    assert wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))['status']=='succeeded'
+    inventory=m.system.inventory()
+    if change=='missing':inventory['volumes']=[]
+    else:inventory['volumes'][0]['id']='different-uuid'
+    m.system.inventory=lambda:inventory
+    executed=[];monkeypatch.setattr(module.os,'execv',lambda *args:executed.append(args))
+    with pytest.raises(SetupError,match='volume_missing'):
+        module.run_stack(m.directory,'nas-manager-prowlarr',system=m.system)
+    assert executed==[]
+
+
+def test_guarded_runner_executes_only_after_guards_without_interrupting_jobs(tmp_path,monkeypatch):
+    import nas_setup.manager as module
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    supervised_host(m,monkeypatch,tmp_path)
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    assert job['status']=='succeeded'
+    m._change(job['id'],status='running')
+    executed=[];monkeypatch.setattr(module.os,'execv',lambda *args:executed.append(args))
+    module.run_stack(m.directory,'nas-manager-prowlarr',system=m.system)
+    assert call(m,'job')['status']=='running'
+    assert executed[0][0]=='/usr/bin/docker'
+    assert '--no-recreate' in executed[0][1] and '--no-build' in executed[0][1]
+
+
+@pytest.mark.parametrize('restart',['no','on-failure',None])
+def test_bound_import_rejects_unsupported_restart_before_writes(tmp_path,restart):
+    import yaml
+    m=manager(tmp_path);media=call(m,'options')['shares'][0]['path']
+    service={'image':'nginx:1.28','volumes':[media+':/data']}
+    if restart is not None:service['restart']=restart
+    with pytest.raises(SetupError,match='compose_lifecycle_unsupported'):
+        call(m,'plan',{'kind':'compose','name':'unsupported','compose':yaml.safe_dump({'services':{'web':service}})})
+    assert not list(m.projects.iterdir()) and not list(m.pending.iterdir())
+
+
+def test_bound_import_rejects_one_shot_mixed_dependency_forms(tmp_path):
+    import yaml
+    m=manager(tmp_path);media=call(m,'options')['shares'][0]['path']
+    config={'services':{'web':{'image':'nginx:1.28','restart':'unless-stopped','volumes':[media+':/data'],'depends_on':{'init':{'condition':'service_completed_successfully'}}},
+        'init':{'image':'busybox:1.37','restart':'unless-stopped','command':['true']},
+        'side':{'image':'nginx:1.28','restart':'unless-stopped','depends_on':['web']}}}
+    with pytest.raises(SetupError,match='compose_lifecycle_unsupported'):call(m,'plan',{'kind':'compose','name':'unsupported','compose':yaml.safe_dump(config)})
+    assert not list(m.pending.iterdir())
+
+
+def test_action_scope_distinguishes_managed_app_and_external_container(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    assert wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))['status']=='succeeded'
+    rows=call(m,'overview')['containers']
+    assert next(c for c in rows if c['managed'])['action_scope']=='app'
+    assert next(c for c in rows if not c['managed'])['action_scope']=='container'
+
+
+def test_guarded_restart_stops_containers_even_during_first_unit_adoption(tmp_path,monkeypatch):
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    assert wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))['status']=='succeeded'
+    commands,state=supervised_host(m,monkeypatch,tmp_path);state['running']=True
+    assert wait(m,call(m,'action',{'id':'a'*64,'action':'restart'}))['status']=='succeeded'
+    stops=[i for i,c in enumerate(commands) if c[:2]==['docker','compose'] and c[-1]=='stop']
+    restarts=[i for i,c in enumerate(commands) if c[:2]==['systemctl','restart']]
+    assert stops and restarts and stops[0]<restarts[0]
