@@ -68,6 +68,13 @@ def test_bootstrap_runtime_is_accessible_under_restrictive_root_umask(tmp_path,m
         def __enter__(self):return self
         def __exit__(self,*args):pass
         def bind(self,address):pass
+    account_prompts=[]
+    def interactive_run(argv,**kwargs):
+        assert argv==['/opt/nas-setup/venv/bin/nas-setup','manager-account','--if-missing']
+        assert kwargs=={'check':True},'Interactive setup must inherit terminal I/O'
+        account_prompts.append(True)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(installer.subprocess,'run',interactive_run)
     def run(*args):
         if args[0]=='dpkg':return 'amd64\n'
         if args[0]=='dpkg-query':return '8.5.12-1\n'
@@ -79,7 +86,9 @@ def test_bootstrap_runtime_is_accessible_under_restrictive_root_umask(tmp_path,m
             Path(args[args.index('-out')+1]).write_text('test certificate');return ''
         if args[:2]==('openssl','x509'):return 'test fingerprint\n'
         if args[0] in ('apt-get','systemctl') or args[0].endswith('/pip'):return ''
-        if args[0].endswith('/nas-setup') and args[1]=='reopen':return 'test pairing output\n'
+        if args[0].endswith('/nas-setup') and args[1]=='reopen':
+            assert account_prompts,'Bootstrap must request the manager account before reopening'
+            return 'test login output\n'
         raise AssertionError('unexpected bootstrap command '+repr(args))
     monkeypatch.setattr(installer,'ROOT',source)
     monkeypatch.setattr(installer,'Path',redirected_path)

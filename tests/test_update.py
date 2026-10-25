@@ -230,6 +230,12 @@ def test_installer_update_reaches_real_updater_without_lan_options(installation,
     monkeypatch.setattr(module.platform, 'system', lambda: 'Linux')
     monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(module, 'run', command)
+    def interactive_account(argv,**kwargs):
+        assert 'new runtime' in link.read_text()
+        assert argv==['/opt/nas-setup/venv/bin/nas-setup','manager-account','--if-missing']
+        assert kwargs=={'check':True}
+        return module.subprocess.CompletedProcess(argv,0)
+    monkeypatch.setattr(module.subprocess,'run',interactive_account)
     monkeypatch.setattr(sys, 'argv', ['install.py', '--update'])
     module.main()
     assert 'new runtime' in link.read_text()

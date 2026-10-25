@@ -17,6 +17,13 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def run(*args):return subprocess.run(args,check=True,text=True,stdout=subprocess.PIPE).stdout
 
+def ensure_manager_account(parser):
+    # Do not use run(): interactive prompts must retain the controlling terminal.
+    try:subprocess.run(['/opt/nas-setup/venv/bin/nas-setup','manager-account','--if-missing'],check=True)
+    except subprocess.CalledProcessError:
+        parser.error('Account setup incomplete. Run sudo nas-setup manager-account, then sudo nas-setup reopen. / Criação da conta incompleta.')
+
+
 def main():
     p=argparse.ArgumentParser(description='Instalar NAS Setup / Install NAS Setup')
     p.add_argument('--address');p.add_argument('--port',type=int,default=8443);p.add_argument('--check',action='store_true')
@@ -41,6 +48,8 @@ def main():
         updater=importlib.util.module_from_spec(spec);spec.loader.exec_module(updater)
         try:output=updater.update_release(ROOT,destination=Path('/opt/nas-setup'),state=Path('/var/lib/nas-setup'),conf=Path('/etc/nas-setup'),run=run)
         except updater.UpdateError as exc:p.error(str(exc))
+        ensure_manager_account(p)
+        output=run('/opt/nas-setup/venv/bin/nas-setup','reopen')
         print('Updated NAS Setup; existing jobs and NAS configuration were preserved. / NAS Setup atualizado.')
         print(output)
         return
@@ -125,6 +134,7 @@ WantedBy=multi-user.target
     for name,content in [('web',web),('worker',worker)]:Path('/etc/systemd/system/nas-setup-'+name+'.service').write_text(content)
     Path('/usr/local/bin/nas-setup').symlink_to('/opt/nas-setup/venv/bin/nas-setup')
     run('systemctl','daemon-reload')
+    ensure_manager_account(p)
     output=run('/opt/nas-setup/venv/bin/nas-setup','reopen')
     print(output)
     print('HTTPS certificate fingerprint / Impressão digital do certificado HTTPS:')
