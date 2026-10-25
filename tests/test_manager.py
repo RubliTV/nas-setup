@@ -1,0 +1,316 @@
+import json
+import threading
+import time
+from types import SimpleNamespace
+import pytest
+from nas_setup.engine import Engine
+from nas_setup.manager import Manager
+from nas_setup.models import SetupError
+from nas_setup.system import DemoSystem
+
+
+def manager(tmp_path):
+    engine=Engine(tmp_path/'worker',DemoSystem(tmp_path/'demo',delay=0))
+    return Manager(engine)
+
+
+def call(m,op,data=None,session='session-one'):
+    return m.call(op,{'session':session,'data':data or {}})
+
+
+def wait(m,job):
+    for _ in range(200):
+        job=call(m,'job',{'id':job['id']})
+        if job['status']!='running':return job
+        time.sleep(.01)
+    raise AssertionError('job did not finish')
+
+
+def test_plan_session_scoped_immutable_and_one_use(tmp_path):
+    m=manager(tmp_path)
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':'services: {web: {image: "nginx:1.28"}}'})
+    with pytest.raises(SetupError,match='plan_expired'):call(m,'deploy',{'plan_id':plan['plan_id']},session='other')
+    with pytest.raises(SetupError):call(m,'deploy',{'plan_id':plan['plan_id'],'compose':'evil'})
+    job=call(m,'deploy',{'plan_id':plan['plan_id']})
+    assert wait(m,job)['status']=='succeeded'
+    with pytest.raises(SetupError,match='plan_expired'):call(m,'deploy',{'plan_id':plan['plan_id']})
+    assert call(m,'overview')['containers'][0]['project']=='nas-manager-hello'
+    assert Manager(m.engine).call('job',{'session':'x','data':{}})['status']=='succeeded'
+
+
+def test_catalog_plan_existing_account_media_and_deploy(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    media=options['shares'][0]['path']
+    plan=call(m,'plan',{'kind':'catalog','app':'radarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name'],'media':media,'port':7878})
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    assert job['status']=='succeeded'
+    container=call(m,'overview')['containers'][0]
+    assert container['managed']
+    assert wait(m,call(m,'action',{'id':container['id'],'action':'stop'}))['status']=='succeeded'
+    assert call(m,'overview')['containers'][0]['state']=='exited'
+
+
+def test_setup_active_blocks_manager_without_consuming_plan(tmp_path):
+    m=manager(tmp_path)
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':'services: {web: {image: "nginx:1.28"}}'})
+    m.engine.store.create({},['preflight'])
+    with pytest.raises(SetupError,match='job_active'):call(m,'deploy',{'plan_id':plan['plan_id']})
+
+
+def test_missing_docker_explained_and_external_update_rejected(tmp_path):
+    m=manager(tmp_path);m.system.demo=False
+    m.system.docker_available=lambda:False
+    assert call(m,'overview')['docker']=='unavailable'
+    with pytest.raises(SetupError,match='docker_unavailable'):call(m,'action',{'id':'a'*64,'action':'stop'})
+
+
+def test_no_secret_in_preview_job_or_logs(tmp_path):
+    m=manager(tmp_path)
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':'services: {web: {image: "nginx:1.28", environment: {PASSWORD: "hidden-value"}}}'})
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    assert 'hidden-value' not in json.dumps([plan,job,call(m,'overview')])
+    assert 'hidden-value' not in m.db.read_bytes().decode(errors='ignore')
+
+
+def test_restart_marks_running_jobs_interrupted(tmp_path):
+    m=manager(tmp_path)
+    with m.connect() as c:
+        c.execute('INSERT INTO jobs VALUES(?,?,?)',('abc',json.dumps({'id':'abc','status':'running','steps':[]}),1))
+    m=Manager(m.engine)
+    assert call(m,'job')['status']=='interrupted'
+
+
+class Host:
+    demo=False
+    def __init__(self,directory):
+        self.directory=directory;self.commands=[];self.available=True
+        self.info={'id':'a'*64,'name':'/external','image':'nginx:1.28','state':'running','project':'other',
+                   'service':'web','owner':None,'ports':{'80/tcp':[{'HostIp':'0.0.0.0','HostPort':'8080'}]},'mounts':[]}
+    def inventory(self):return {'volumes':[]}
+    def docker_available(self):return self.available
+    def run(self,args,timeout=60,check=True):
+        self.commands.append(args)
+        if args[:2]==['docker','info']:out='29.0'
+        elif args[:2]==['docker','ps']:out=self.info['id']
+        elif args[:2]==['docker','stats']:out=json.dumps({'ID':'a'*12,'CPUPerc':'2.0%','MemUsage':'32 MiB / 1 GiB'})
+        elif args[:2]==['docker','inspect']:out=json.dumps({'env':['PASSWORD=super-private'],'cmd':None,'entrypoint':None,'healthcheck':None}) if '.Config.Env' in args[3] else json.dumps(self.info)
+        elif args[:2]==['docker','logs']:out='ready\nsuper-private\npassword generated: surprise\n'
+        elif args[:2] in (['docker','stop'],['systemctl','stop']):self.info['state']='exited';out=''
+        else:raise AssertionError(args)
+        return SimpleNamespace(stdout=out,stderr='',returncode=0)
+
+
+def host_manager(tmp_path):
+    from nas_setup.jobs import JobStore
+    host=Host(tmp_path)
+    engine=SimpleNamespace(system=host,store=JobStore(tmp_path/'worker'),lock=threading.Lock())
+    return Manager(engine)
+
+
+def test_real_boundary_external_action_preserves_configuration_and_stats(tmp_path):
+    m=host_manager(tmp_path)
+    container=call(m,'overview')['containers'][0]
+    assert not container['managed'] and container['cpu']=='2.0%'
+    assert container['ports']==[{'host':8080,'container':80,'protocol':'tcp'}]
+    with pytest.raises(SetupError,match='external_update_unsupported'):call(m,'action',{'id':'a'*64,'action':'update'})
+    assert wait(m,call(m,'action',{'id':'a'*64,'action':'stop'}))['status']=='succeeded'
+    assert call(m,'overview')['containers'][0]['state']=='exited'
+    assert ['docker','stop','a'*64] in m.system.commands
+    assert not any('rm' in c or 'compose' in c for c in m.system.commands)
+
+
+def test_legacy_owned_stop_uses_systemd_and_logs_hide_secrets(tmp_path):
+    m=host_manager(tmp_path);m.system.info['project']='nas-setup-jellyfin'
+    m.system.check_project_ownership=lambda app:True
+    m.system.guard_stack=lambda app:{}
+    assert wait(m,call(m,'action',{'id':'a'*64,'action':'stop'}))['status']=='succeeded'
+    assert ['systemctl','stop','nas-app-jellyfin.service'] in m.system.commands
+    text=call(m,'logs',{'id':'a'*64})['text']
+    assert 'super-private' not in text and 'surprise' not in text and 'ready' in text
+
+
+def test_plan_deploy_rejects_changed_mount_before_write(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    media=options['shares'][0]['path']
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':f'services: {{web: {{image: "nginx:1.28", volumes: ["{media}:/data"]}}}}'})
+    from pathlib import Path
+    Path(media).rmdir();Path(media).symlink_to('/etc')
+    with pytest.raises(SetupError,match='unsafe_storage'):call(m,'deploy',{'plan_id':plan['plan_id']})
+    assert not list(m.projects.iterdir())
+
+
+def test_prowlarr_plan_does_not_require_media_share(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name'],'media':''})
+    assert len(plan['summary']['services'][0]['mounts'])==1
+    assert wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))['status']=='succeeded'
+
+
+def test_retry_failed_deploy_preserves_private_config_and_data(tmp_path):
+    m=manager(tmp_path)
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':'services: {web: {image: "nginx:1.28", environment: {PASSWORD: "hidden-value"}}}'})
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    m._change(job['id'],status='failed',error='manager_command_failed')
+    config=m.projects/'nas-manager-hello'/'compose.yml';original=config.read_bytes()
+    retried=wait(m,call(m,'retry',{'id':job['id']}))
+    assert retried['status']=='succeeded'
+    assert config.read_bytes()==original
+    assert 'hidden-value' not in json.dumps(retried)
+    with pytest.raises(SetupError):call(m,'retry',{'id':retried['id']})
+
+
+def test_overview_paginates_all_containers_with_bounded_response(tmp_path):
+    m=manager(tmp_path)
+    for n in range(130):m._save_project({'name':f'nas-manager-p{n}','services':{'web':{'image':'nginx:1.28','ports':[]}}})
+    offset=0;seen=[]
+    while offset is not None:
+        page=call(m,'overview',{'offset':offset});seen.extend(c['id'] for c in page['containers'])
+        assert len(json.dumps(page).encode())<262144
+        offset=page['next_offset']
+    assert len(set(seen))==131 and page['total']==131
+
+
+def test_demo_external_container_can_stop_and_restart_but_not_update(tmp_path):
+    m=manager(tmp_path)
+    external=next(c for c in call(m,'overview')['containers'] if not c['managed'])
+    assert 'update' not in external['actions']
+    assert wait(m,call(m,'action',{'id':external['id'],'action':'stop'}))['status']=='succeeded'
+    restored=Manager(m.engine)
+    assert next(c for c in call(restored,'overview')['containers'] if c['id']==external['id'])['state']=='exited'
+    assert wait(restored,call(restored,'action',{'id':external['id'],'action':'start'}))['status']=='succeeded'
+    with pytest.raises(SetupError,match='external_update_unsupported'):call(restored,'action',{'id':external['id'],'action':'update'})
+    assert 'Demo' in call(restored,'logs',{'id':external['id']})['text']
+
+
+def test_logs_redact_before_truncating_and_cover_command_secrets(tmp_path):
+    m=host_manager(tmp_path);original=m.system.run
+    def command(args,timeout=60,check=True):
+        if args[:2]==['docker','inspect'] and '.Config.Env' in args[3]:
+            if args[3]=='{{json .Config.Env}}':out=json.dumps(['PASSWORD=super-private'])
+            else:out=json.dumps({'env':['PASSWORD=super-private'],'cmd':['sh','-c','echo command-private'],'entrypoint':['app','--secret=entry-private'],'healthcheck':{'Test':['CMD','check','--token=health-private']}})
+            return SimpleNamespace(stdout=out,stderr='',returncode=0)
+        if args[:2]==['docker','logs']:
+            return SimpleNamespace(stdout='super-private'+('x'*32760)+'\ncommand-private\nentry-private\nhealth-private',stderr='',returncode=0)
+        return original(args,timeout,check)
+    m.system.run=command
+    text=call(m,'logs',{'id':'a'*64})['text']
+    assert 'private' not in text
+    assert len(text)<=32768
+
+
+def test_secret_spanning_log_truncation_boundary_does_not_leak_suffix(tmp_path):
+    m=host_manager(tmp_path);original=m.system.run
+    def command(args,timeout=60,check=True):
+        if args[:2]==['docker','logs']:return SimpleNamespace(stdout='super-private'+('x'*32760),stderr='',returncode=0)
+        return original(args,timeout,check)
+    m.system.run=command
+    assert 'private' not in call(m,'logs',{'id':'a'*64})['text']
+
+
+def test_real_pull_failure_can_retry_saved_configuration(tmp_path):
+    m=manager(tmp_path)
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':'services: {web: {image: "nginx:1.28", environment: {PASSWORD: "hidden-value"}}}'})
+    m.system.demo=False;m.system.docker_available=lambda:True
+    commands=[];failed=False
+    def command(args,timeout=60,check=True):
+        nonlocal failed
+        commands.append(args)
+        if args[:2]==['docker','info']:return SimpleNamespace(stdout='29.0',stderr='',returncode=0)
+        if args[-1]=='pull' and not failed:
+            failed=True;return SimpleNamespace(stdout='',stderr='hidden-value',returncode=1)
+        return SimpleNamespace(stdout='',stderr='',returncode=0)
+    m.system.run=command
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    assert job['status']=='failed' and job['error']=='manager_command_failed'
+    assert 'hidden-value' not in json.dumps(job)
+    retry=wait(m,call(m,'retry',{'id':job['id']}))
+    assert retry['status']=='succeeded'
+    assert sum(c[-1]=='pull' for c in commands)==2
+    assert any('up' in c and '--no-build' in c for c in commands)
+    assert not any('down' in c or '--volumes' in c for c in commands)
+
+
+def test_failed_private_inspection_never_returns_logs(tmp_path):
+    m=host_manager(tmp_path);original=m.system.run
+    def command(args,timeout=60,check=True):
+        if args[:2]==['docker','inspect'] and '.Config.Env' in args[3]:return SimpleNamespace(stdout='',stderr='secret',returncode=1)
+        return original(args,timeout,check)
+    m.system.run=command
+    with pytest.raises(SetupError):call(m,'logs',{'id':'a'*64})
+    assert not any(args[:2]==['docker','logs'] for args in m.system.commands)
+
+
+def test_failed_compose_write_resumes_validation_after_restart(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    original=m._write
+    def fail_compose(path,text):
+        if path.name=='compose.yml':raise OSError('disk full')
+        original(path,text)
+    m._write=fail_compose
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    assert job['status']=='failed'
+    recovered=Manager(m.engine)
+    assert wait(recovered,call(recovered,'retry',{'id':job['id']}))['status']=='succeeded'
+    assert (recovered.projects/'nas-manager-prowlarr'/'compose.yml').is_file()
+
+
+def test_staging_failure_has_no_app_mutations_and_plan_can_be_retried(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    original=m._write
+    m._write=lambda *args:(_ for _ in ()).throw(OSError('disk full'))
+    with pytest.raises(SetupError):call(m,'deploy',{'plan_id':plan['plan_id']})
+    from pathlib import Path
+    assert not (Path(options['volumes'][0]['path'])/'.nas-manager').exists()
+    m._write=original
+    assert wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))['status']=='succeeded'
+
+
+def test_staged_plan_without_job_is_recovered_as_interrupted_without_replay(tmp_path):
+    m=manager(tmp_path)
+    plan=call(m,'plan',{'kind':'compose','name':'hello','compose':'services: {web: {image: "nginx:1.28"}}'})
+    m._new_job=lambda *args:(_ for _ in ()).throw(OSError('database disk full'))
+    with pytest.raises(SetupError):call(m,'deploy',{'plan_id':plan['plan_id']})
+    assert not list(m.projects.iterdir())
+    recovered=Manager(m.engine);job=call(recovered,'job')
+    assert job['status']=='interrupted' and not list(m.projects.iterdir())
+    assert wait(recovered,call(recovered,'retry',{'id':job['id']}))['status']=='succeeded'
+
+
+def test_interrupted_validate_reuses_owned_partial_directories(tmp_path):
+    m=manager(tmp_path);options=call(m,'options')
+    plan=call(m,'plan',{'kind':'catalog','app':'prowlarr','volume':options['volumes'][0]['id'],'user':options['users'][0]['name']})
+    original=m._prepare_storage
+    def interrupt_after_prepare(plan):
+        original(plan);raise OSError('simulated interruption after mkdir')
+    m._prepare_storage=interrupt_after_prepare
+    job=wait(m,call(m,'deploy',{'plan_id':plan['plan_id']}))
+    m._change(job['id'],status='running')
+    recovered=Manager(m.engine)
+    assert call(recovered,'job')['status']=='interrupted'
+    assert wait(recovered,call(recovered,'retry',{'id':job['id']}))['status']=='succeeded'
+
+
+def test_prepare_docker_is_durable_and_serialized(tmp_path):
+    m=manager(tmp_path)
+    job=wait(m,call(m,'prepare_docker'))
+    assert job['status']=='succeeded' and job['operation']=='prepare_docker'
+    assert 'docker' in m.system.installed
+    m.engine.store.create({},['preflight'])
+    with pytest.raises(SetupError,match='job_active'):call(m,'prepare_docker')
+
+
+def test_prepare_docker_rejects_unsupported_host(tmp_path):
+    m=manager(tmp_path);m.system.inventory=lambda:{'supported':False,'volumes':[]}
+    with pytest.raises(SetupError,match='unsupported_host'):call(m,'prepare_docker')
+
+
+def test_media_permissions_use_container_uid_gid_without_host_extra_groups(tmp_path):
+    m=manager(tmp_path);m.system.demo=False;commands=[]
+    def command(args,**kwargs):
+        commands.append(args);return SimpleNamespace(stdout='',stderr='',returncode=0)
+    m.system.run=command
+    m._media_permission(tmp_path,{'name':'alice','uid':1001,'gid':100})
+    assert all(args[:7]==['setpriv','--reuid','1001','--regid','100','--clear-groups','--'] for args in commands)
+    assert {args[-2] for args in commands}=={'-r','-w','-x'}
