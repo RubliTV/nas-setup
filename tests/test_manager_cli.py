@@ -131,3 +131,62 @@ def test_manager_account_accepts_a_nonseekable_terminal(terminal,monkeypatch):
     finally:
         os.close(master);os.close(slave)
         signal.signal(signal.SIGHUP,previous)
+
+
+def test_account_setup_over_real_tty_hides_password_and_preserves_upgrade_login(tmp_path):
+    """Exercise getpass and scrypt using a controlling PTY, never host accounts."""
+    import os
+    import pty
+    import select
+    import subprocess
+    import sys
+    import time
+    script=r'''
+import json, os, pwd, subprocess, sys
+from pathlib import Path
+from types import SimpleNamespace
+from nas_setup import cli
+from nas_setup.manager_auth import ManagerAccount
+terminal=os.open(os.ttyname(0),os.O_RDWR)
+directory=Path(sys.argv[1])
+cli.os.geteuid=lambda:0
+cli.Path=lambda value:directory if value=='/var/lib/nas-setup/web' else Path(value)
+pwd.getpwnam=lambda name:SimpleNamespace(pw_uid=os.getuid(),pw_gid=os.getgid())
+def write_as_owner(argv,**kwargs):
+    payload=json.loads(kwargs['input'])
+    ManagerAccount(directory).create(payload['username'],payload['password'],replace=payload['replace'])
+    return subprocess.CompletedProcess(argv,0)
+cli.subprocess.run=write_as_owner
+sys.argv=['nas-setup','manager-account','--if-missing'];cli.main()
+# The same bootstrap command on upgrade must not prompt or change credentials.
+cli.main()
+os.close(terminal)
+'''
+    master,slave=pty.openpty()
+    process=None
+    transcript=b''
+    try:
+        process=subprocess.Popen([sys.executable,'-c',script,str(tmp_path/'web')],
+            stdin=slave,stdout=slave,stderr=slave,start_new_session=True)
+        os.close(slave);slave=None
+        deadline=time.monotonic()+15
+        def until(needle):
+            nonlocal transcript
+            while needle not in transcript:
+                assert time.monotonic()<deadline,'Interactive manager setup timed out'
+                if select.select([master],[],[],.1)[0]:
+                    try:chunk=os.read(master,4096)
+                    except OSError:chunk=b''
+                    assert chunk,'Interactive manager setup exited before its next prompt'
+                    transcript+=chunk
+        until(b'Manager username');os.write(master,b'admin\n')
+        until(b'Manager password');os.write(master,b'Hidden-test-credential!\n')
+        until(b'Repeat password');os.write(master,b'Hidden-test-credential!\n')
+        until(b'Manager account saved.')
+        assert process.wait(timeout=15)==0
+        assert b'Hidden-test-credential!' not in transcript
+        assert ManagerAccount(tmp_path/'web').verify('admin','Hidden-test-credential!')
+    finally:
+        if process and process.poll() is None:process.kill();process.wait()
+        os.close(master)
+        if slave is not None:os.close(slave)

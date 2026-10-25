@@ -55,6 +55,7 @@ class Auth:
                 if record['expires']<now or not hmac.compare_digest(record['hash'],digest):raise ValueError()
             except (OSError,ValueError,KeyError,TypeError,AttributeError):raise SetupError('login_invalid') from None
             self.path.unlink()
+            self.attempts.pop(peer,None)
             self.sessions.clear()
             return self._session(now,self.account.revision())
 
@@ -63,6 +64,7 @@ class Auth:
             now=self._attempt(peer)
             revision=self.account.authenticate(username,password)
             if revision is None:raise SetupError('login_invalid')
+            self.attempts.pop(peer,None)
             # A valid password also consumes an outstanding recovery code.
             if self.path.exists():self.sessions.clear()
             self.path.unlink(missing_ok=True)

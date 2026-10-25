@@ -109,3 +109,25 @@ def test_local_reset_revokes_an_outstanding_recovery_code(tmp_path):
     code=issue_code(tmp_path);auth=Auth(tmp_path)
     store.create('admin','Replacement password',replace=True)
     with pytest.raises(SetupError,match='login_invalid'):auth.login(code,'lan')
+
+
+def test_fifth_successful_pairing_allows_immediate_enrollment_login(tmp_path):
+    code=issue_code(tmp_path);auth=Auth(tmp_path)
+    for _ in range(4):
+        with pytest.raises(SetupError,match='login_invalid'):auth.login('incorrect-code','lan')
+    token,_=auth.login(code,'lan')
+    assert auth.session(token)['username'] is None
+    account(tmp_path).create('admin','A long test password')
+    token,_=auth.login_password('admin','A long test password','lan')
+    assert auth.session(token)['username']=='admin'
+
+
+def test_successful_password_login_resets_consecutive_bad_attempts(tmp_path):
+    account(tmp_path).create('admin','A long test password');auth=Auth(tmp_path)
+    for _ in range(4):
+        with pytest.raises(SetupError,match='login_invalid'):auth.login_password('admin','incorrect','lan')
+    token,_=auth.login_password('admin','A long test password','lan')
+    assert auth.session(token)['username']=='admin'
+    for _ in range(5):
+        with pytest.raises(SetupError,match='login_invalid'):auth.login_password('admin','incorrect','lan')
+    with pytest.raises(SetupError,match='rate_limited'):auth.login_password('admin','A long test password','lan')
