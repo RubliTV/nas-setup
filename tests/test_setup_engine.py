@@ -242,6 +242,7 @@ def test_resume_only_requests_passwords_for_unfinished_accounts(tmp_path, monkey
     e.store.update(job['id'],status='failed')
     journal=OperationJournal(e.wizard.directory/job['id']/'journal')
     journal.perform('user.ana',lambda:{'name':'ana','uid':1001})
+    (e.wizard.directory/job['id']/'credentials.json').unlink() # Legacy jobs may have discarded credentials.
     assert e.call('job')['resume_password_users']==['bruno']
     resumed=request(e,'resume',{'passwords':{'bruno':'mnopqrstuvwx'}})
     assert resumed['status']=='running'
@@ -262,5 +263,94 @@ def test_uncertain_account_creation_still_requires_credentials(tmp_path,monkeypa
     def interrupted(): raise RuntimeError('lost response')
     with pytest.raises(RuntimeError): journal.perform('user.ana',interrupted)
     e.store.update(job['id'],status='failed')
+    (e.wizard.directory/job['id']/'credentials.json').unlink()
     assert e.call('job')['resume_password_users']==['ana','bruno']
     with pytest.raises(SetupError,match='password_required'):request(e,'resume',{})
+
+
+@pytest.mark.parametrize('status',['failed','paused','interrupted'])
+def test_saved_passwords_survive_retry_and_restart_then_are_removed(tmp_path,monkeypatch,status):
+    import json
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection())
+    credentials={'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE',
+        'erase_disks':['demo-disk-1','demo-disk-2'],'passwords':credentials})
+    path=e.wizard.directory/job['id']/'credentials.json'
+    assert path.stat().st_mode & 0o777==0o600
+    assert path.parent.stat().st_mode & 0o777==0o700
+    if status=='failed':
+        def fail(*args):raise SetupError('omv_configuration_changed')
+        monkeypatch.setattr(e.wizard.provisioner,'prepare',fail)
+        e.wizard._run(job)
+    else:e.store.update(job['id'],status=status)
+    assert path.exists(),'failed runs must retain passwords for Resume'
+    assert e.call('job')['resume_password_users']==[]
+    restarted=engine(tmp_path);monkeypatch.setattr(restarted.wizard,'_launch',lambda job:None)
+    assert restarted.call('job')['resume_password_users']==[]
+    result=request(restarted,'resume',{},'new-authenticated-session')
+    assert json.loads(path.read_text())==credentials,'empty Resume must reuse saved passwords'
+    assert 'abcdefghijkl' not in json.dumps(result)
+    restarted.wizard._run(result)
+    assert next(s for s in restarted.store.get()['steps'] if s['id']=='storage_setup')['status']=='succeeded'
+    assert not path.exists()
+    assert b'abcdefghijkl' not in restarted.store.db.read_bytes()
+
+
+def test_restart_cleans_credentials_for_completed_storage(tmp_path,monkeypatch):
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection())
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE',
+        'erase_disks':['demo-disk-1','demo-disk-2'],'passwords':{'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}})
+    path=e.wizard.directory/job['id']/'credentials.json'
+    e.store.step(job['id'],'storage_setup','succeeded')
+    engine(tmp_path)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize('damage',['missing','invalid','foreign_user','public','symlink'])
+def test_unusable_saved_passwords_require_reentry_without_exposing_secrets(tmp_path,monkeypatch,damage):
+    from nas_setup.setup_engine import private_json
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection())
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE',
+        'erase_disks':['demo-disk-1','demo-disk-2'],'passwords':{'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}})
+    e.store.update(job['id'],status='failed')
+    path=e.wizard.directory/job['id']/'credentials.json'
+    if damage=='missing':path.unlink()
+    elif damage=='invalid':path.write_text('BROKEN_SECRET')
+    elif damage=='foreign_user':private_json(path,{'root':'abcdefghijkl'})
+    elif damage=='public':path.chmod(0o644)
+    else:
+        target=tmp_path/'outside';path.rename(target);path.symlink_to(target)
+    assert e.call('job')['resume_password_users']==['ana','bruno']
+    with pytest.raises(SetupError,match='password_required'):request(e,'resume',{})
+    resumed=request(e,'resume',{'passwords':{'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}})
+    assert resumed['status']=='running'
+    assert not path.is_symlink() and path.stat().st_mode & 0o777==0o600
+    assert e.call('job')['resume_password_users']==[]
+
+
+def test_resume_combines_saved_and_reentered_passwords(tmp_path,monkeypatch):
+    import json
+    from nas_setup.setup_engine import private_json
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection())
+    credentials={'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE',
+        'erase_disks':['demo-disk-1','demo-disk-2'],'passwords':credentials})
+    path=e.wizard.directory/job['id']/'credentials.json'
+    private_json(path,{'ana':credentials['ana']})
+    e.store.update(job['id'],status='failed')
+    assert e.call('job')['resume_password_users']==['bruno']
+    resumed=request(e,'resume',{'passwords':{'bruno':credentials['bruno']}})
+    assert json.loads(path.read_text())==credentials
+    provision=e.wizard.provisioner.provision
+    delivered=[]
+    def capture(selection,plan,journal,passwords):
+        delivered.append(dict(passwords))
+        return provision(selection,plan,journal,passwords)
+    monkeypatch.setattr(e.wizard.provisioner,'provision',capture)
+    e.wizard._run(resumed)
+    assert delivered==[credentials]
+    assert not path.exists()

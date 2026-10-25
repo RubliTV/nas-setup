@@ -100,3 +100,14 @@ removes accepted passwords from the DOM, and rejects stale pre-action poll data.
 184 tests pass on Python 3.12/3.15; existing and new Chrome bilingual/mobile suites
 pass. Independent review is clean after offline icon follow-up. No disk setup or
 application image changes; see docs/v023-progress-validation.md for boundaries.
+
+## v0.2.4 retained passwords and visibility controls
+
+Per the user's updated requirement, unfinished installation credentials now
+survive failure, pause and worker restart in a root-private file. Resume reuses
+them automatically; completed storage removes the file. Legacy/missing/invalid
+files require one entry, then retain it for subsequent retries. Show/Hide controls
+cover initial, confirmation and fallback recovery inputs in PT/EN, with revealed
+values cleared after submission. Python and browser regressions cover persistence,
+cleanup, damaged-file fallback and visibility; independent review is clean.
+See docs/v024-password-validation.md for evidence and validation limits.

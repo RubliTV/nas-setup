@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import stat
 import tempfile
 import threading
 import time
@@ -38,6 +39,9 @@ def private_json(path,data):
         with os.fdopen(fd,'w') as stream:
             json.dump(data,stream);stream.flush();os.fsync(stream.fileno())
         os.replace(name,path)
+        directory_fd=os.open(path.parent,os.O_RDONLY | os.O_DIRECTORY)
+        try:os.fsync(directory_fd)
+        finally:os.close(directory_fd)
     finally:Path(name).unlink(missing_ok=True)
 
 
@@ -46,9 +50,12 @@ class WizardEngine:
         self.engine=engine;self.system=engine.system;self.provisioner=provisioner
         self.plans={};self.grants={};self.pending_offers={};self.pending_runs={}
         self.directory=engine.store.directory/'setup';self.directory.mkdir(exist_ok=True,mode=0o700)
-        # A restart discards credentials and unused plans; a saved job retains its
-        # original authorization, subject to recovery verification on every retry.
-        for path in self.directory.glob('*/credentials.json'):path.unlink()
+        # Keep credentials for unfinished setup across worker restarts. Plans and
+        # session grants remain ephemeral; every retry still verifies ownership.
+        for path in self.directory.glob('*/credentials.json'):
+            job=engine.store.get(path.parent.name)
+            if not job or not job.get('setup') or self._storage_done(job) or job['status']=='succeeded':
+                path.unlink(missing_ok=True)
 
     def inventory(self):return {**self.system.inventory(),**self.provisioner.inventory()}
 
@@ -125,9 +132,28 @@ class WizardEngine:
         if not required.issubset(body.passwords) or not set(body.passwords).issubset(names):raise SetupError('password_required')
         return {name:body.passwords[name].get_secret_value() for name in required}
 
-    def required_password_users(self,job):
-        if not job.get('setup') or job['status'] not in {'failed','paused','interrupted'}:return []
-        if any(s['id']=='storage_setup' and s['status']=='succeeded' for s in job['steps']):return []
+    @staticmethod
+    def _storage_done(job):
+        return any(s['id']=='storage_setup' and s['status']=='succeeded' for s in job['steps'])
+
+    def _saved_credentials(self,job):
+        path=self.directory/job['id']/'credentials.json'
+        try:
+            fd=os.open(path,os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd) as stream:
+                info=os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid() or info.st_mode & 0o077:
+                    return {}
+                data=json.load(stream)
+            body=SetupStart(passwords=data)
+            return self._credentials(body,job['selection'],set(body.passwords))
+        except (OSError,ValueError,SetupError):
+            # Missing credentials from older releases can be entered once again.
+            # Never expose malformed file contents through the API or logs.
+            return {}
+
+    def _unfinished_password_users(self,job):
+        if not job.get('setup') or self._storage_done(job):return []
         journal=OperationJournal(self.directory/job['id']/'journal')
         missing=[]
         for user in job['selection']['users']:
@@ -137,6 +163,11 @@ class WizardEngine:
             if not (record and record['status']=='completed' and record.get('result')
                     and record['result'].get('name')==name):missing.append(name)
         return missing
+
+    def required_password_users(self,job):
+        if job['status'] not in {'failed','paused','interrupted'}:return []
+        saved=self._saved_credentials(job) if job.get('setup') and not self._storage_done(job) else {}
+        return [name for name in self._unfinished_password_users(job) if name not in saved]
 
     def present(self,job):
         if job is None:return None
@@ -197,7 +228,10 @@ class WizardEngine:
                         offer['snapshot']!=self.provisioner.pending_configuration(job['plan'],journal)):
                         raise SetupError('omv_configuration_changed')
                     pending=offer['snapshot']
-                credentials=self._credentials(body,job['selection'],self.required_password_users(job))
+                required=self._unfinished_password_users(job)
+                saved=self._saved_credentials(job)
+                supplied=self._credentials(body,job['selection'],set(required)-saved.keys())
+                credentials={name:supplied[name] if name in supplied else saved[name] for name in required}
                 if body.plan_id is not None:self.plans.pop(body.plan_id)
                 self.grants[job['id']]=session
                 private_json(self.directory/job['id']/'credentials.json',credentials)
@@ -299,4 +333,5 @@ class WizardEngine:
                 self.engine.store.update(identity,status='failed',error=code)
                 self.grants.pop(identity,None)
             finally:
-                credentials_path.unlink(missing_ok=True)
+                if self._storage_done(self.engine.store.get(identity)):
+                    credentials_path.unlink(missing_ok=True)

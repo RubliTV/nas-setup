@@ -220,7 +220,7 @@
     "checkSync": "Verificar sincronização",
     "pausePending": "Pausa solicitada · aguardando etapa segura",
     "resumeCredentials": "Confirme as credenciais para retomar",
-    "resumeCredentialsHint": "Só as contas cuja criação não terminou precisam da senha novamente. As senhas são descartadas após a tentativa; contas concluídas são verificadas e reutilizadas.",
+    "resumeCredentialsHint": "As senhas salvas não estão disponíveis para estas contas ainda não criadas, por exemplo após atualizar uma versão antiga. Digite-as uma vez; o NAS as guardará de forma privada para novas tentativas e as removerá após a configuração.",
     "demoShares": "Endereços ilustrativos. Nenhum disco ou compartilhamento real foi criado.",
     "sharesReady": "Use estes endereços na sua rede local.",
     "manageOmv": "Gerenciar no OpenMediaVault",
@@ -296,7 +296,9 @@
     "activity_starting_app": "Iniciando o serviço do aplicativo",
     "activity_checking_app": "Aguardando o aplicativo responder · a primeira inicialização pode levar vários minutos",
     "activity_installing_tailscale": "Instalando e iniciando o Tailscale",
-    "activity_checking_services": "Verificando os serviços instalados"
+    "activity_checking_services": "Verificando os serviços instalados",
+    "showPassword": "Mostrar",
+    "hidePassword": "Ocultar"
   },
   "en": {
     "sidebarCaption": "SET UP YOUR NAS",
@@ -519,7 +521,7 @@
     "checkSync": "Check synchronization",
     "pausePending": "Pause requested · waiting for a safe boundary",
     "resumeCredentials": "Re-enter credentials to resume",
-    "resumeCredentialsHint": "Only accounts whose creation is unfinished need a password again. Passwords are discarded after the attempt; completed accounts are verified and reused.",
+    "resumeCredentialsHint": "Saved passwords are unavailable for these unfinished accounts, for example after an update from an older version. Enter them once; the NAS will keep them privately for retries and remove them after setup.",
     "demoShares": "Illustrative addresses. No real disks or shares were created.",
     "sharesReady": "Use these addresses on your local network.",
     "manageOmv": "Manage in OpenMediaVault",
@@ -595,6 +597,8 @@
     "activity_starting_app": "Starting the application service",
     "activity_checking_app": "Waiting for the application to respond · first startup may take several minutes",
     "activity_installing_tailscale": "Installing and starting Tailscale",
-    "activity_checking_services": "Checking the installed services"
+    "activity_checking_services": "Checking the installed services",
+    "showPassword": "Show",
+    "hidePassword": "Hide"
   }
 }

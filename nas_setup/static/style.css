@@ -20,3 +20,5 @@
 @media(max-width:480px){.activity-heading{align-items:flex-start;flex-direction:column;gap:5px}}
 
 .job-steps[data-connected=false] li[data-status=running] .step-icon{animation:none}
+
+.password-field{position:relative}.password-field input{padding-right:6rem}.password-toggle{position:absolute;right:6px;bottom:6px;min-height:32px;padding:4px 10px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--green);font-size:12px}.password-toggle:hover{background:#e7efe9}

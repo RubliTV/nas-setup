@@ -31,7 +31,7 @@ function updateSelection(){
 function applyLanguage(){
  document.documentElement.lang=lang;localStorage.setItem('nas-language',lang);document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=t(e.dataset.i18n));
  $('lang-pt').classList.toggle('active',lang==='pt-BR');$('lang-en').classList.toggle('active',lang==='en');
- if(inventory){renderInventory();renderUsers();renderShares();}if(plan)renderPlan();if(job)renderJob();if(errorCode)text('error',message(errorCode));updateSelection();
+ if(inventory){renderInventory();renderUsers();renderShares();}if(plan)renderPlan();if(job)renderJob();document.querySelectorAll('.password-toggle').forEach(button=>passwordToggleLabel(button,$(button.getAttribute('aria-controls'))));if(errorCode)text('error',message(errorCode));updateSelection();
 }
 function toleranceLabel(count){return t(count===0?'toleranceNone':count===1?'toleranceOne':'tolerance',{count});}
 function size(bytes){return `${(Number(bytes||0)/1e12).toLocaleString(lang,{minimumFractionDigits:2,maximumFractionDigits:2})} TB`;}
@@ -55,7 +55,20 @@ function renderCapacity(){
  const capacity=({single:min,raid1:min,raid5:Math.max(0,n-1)*min,raid6:Math.max(0,n-2)*min})[mode]||0;
  $('existing-options').hidden=mode!=='existing';text('layout-hint',t('layout_'+mode));text('capacity-value',mode==='existing'?t('existingCapacity'):validStorage()?size(capacity):'—');text('capacity-binary',mode!=='existing'&&validStorage()?`${(capacity/2**40).toLocaleString(lang,{maximumFractionDigits:2})} TiB · ${t('beforeOverhead')}`:'');text('tolerance-value',mode==='existing'?t('checkOmv'):toleranceLabel(mode==='single'?0:mode==='raid6'?2:1));$('mixed-capacity').hidden=new Set(disks.map(d=>d.size_bytes)).size<2;
 }
-function inputField(label,cls,type,value,oninput){const wrap=node('label','field');wrap.append(node('span','',label));const input=node('input',cls);input.type=type;input.value=value||'';input.autocomplete=type==='password'?'new-password':'off';input.maxLength=type==='password'?128:32;input.oninput=()=>oninput(input.value);wrap.append(input);return wrap;}
+let inputSequence=0;
+function passwordToggleLabel(button,input){button.textContent=t(input.type==='password'?'showPassword':'hidePassword');button.setAttribute('aria-pressed',String(input.type==='text'));}
+function inputField(label,cls,type,value,oninput){
+ const wrap=node('label','field'),caption=node('span','',label),input=node('input',cls);
+ input.id=`field-${++inputSequence}`;caption.id=`${input.id}-label`;input.setAttribute('aria-labelledby',caption.id);
+ input.type=type;input.value=value||'';input.autocomplete=type==='password'?'new-password':'off';input.maxLength=type==='password'?128:32;input.oninput=()=>oninput(input.value);wrap.append(caption,input);
+ if(type==='password'){
+  wrap.classList.add('password-field');input.dataset.credential='true';
+  const toggle=node('button','password-toggle');toggle.type='button';toggle.setAttribute('aria-controls',input.id);
+  toggle.onclick=()=>{input.type=input.type==='password'?'text':'password';passwordToggleLabel(toggle,input);};
+  passwordToggleLabel(toggle,input);wrap.append(toggle);
+ }
+ return wrap;
+}
 function renderUsers(){
  const list=$('users-list');list.replaceChildren();draft.users.forEach((u,i)=>{
   const row=node('div','user-row');row.append(inputField(t('username'),'user-name','text',u.name,value=>{const old=u.name;u.name=value;for(const s of draft.shares){s.permissions[value]=s.permissions[old]||'none';if(old!==value)delete s.permissions[old];}invalidate();renderShares();}),inputField(t('password'),'user-password','password',passwords[i]?.password,value=>{passwords[i]={...passwords[i],password:value};}),inputField(t('passwordConfirm'),'user-confirm','password',passwords[i]?.confirm,value=>{passwords[i]={...passwords[i],confirm:value};}));
@@ -174,7 +187,7 @@ async function init(){
  $('add-user').onclick=()=>{draft.users.push({name:''});passwords.push({});invalidate();renderUsers();renderShares();};$('add-share').onclick=()=>{draft.shares.push({name:t('newShare'),folder:'custom',permissions:{},enabled:true});invalidate();renderShares();};
  for(const c of document.querySelectorAll('.app-card input'))c.onchange=()=>{draft.apps=[...document.querySelectorAll('.app-card input:checked')].map(i=>i.value);invalidate();updateSelection();};$('timezone').oninput=()=>{draft.timezone=$('timezone').value;invalidate();};$('machine-learning').onchange=()=>{draft.machine_learning=$('machine-learning').checked;invalidate();};
  $('apps-next').onclick=e=>action(e.currentTarget,review);for(const b of document.querySelectorAll('.back'))b.onclick=()=>{invalidate();show(b.dataset.target);};$('erase-confirmation').oninput=updateSelection;
- $('install').onclick=e=>action(e.currentTarget,async()=>{const creds=Object.fromEntries(draft.users.map((u,i)=>[u.name.trim(),passwords[i]?.password||'']));job=await api('setup/start','POST',{plan_id:plan.plan_id,confirmation:$('erase-confirmation').value,erase_disks:[...document.querySelectorAll('.erase-check:checked')].map(c=>c.value),passwords:creds});passwords=[];document.querySelectorAll('input[type=password]').forEach(i=>i.value='');localStorage.removeItem('nas-setup-draft');show('progress');renderJob();});
+ $('install').onclick=e=>action(e.currentTarget,async()=>{const creds=Object.fromEntries(draft.users.map((u,i)=>[u.name.trim(),passwords[i]?.password||'']));job=await api('setup/start','POST',{plan_id:plan.plan_id,confirmation:$('erase-confirmation').value,erase_disks:[...document.querySelectorAll('.erase-check:checked')].map(c=>c.value),passwords:creds});passwords=[];document.querySelectorAll('input[data-credential],input[type=password]').forEach(i=>{i.value='';i.type='password';if(i.dataset.credential)passwordToggleLabel(i.parentElement.querySelector('.password-toggle'),i);});localStorage.removeItem('nas-setup-draft');show('progress');renderJob();});
  $('pause').onclick=e=>action(e.currentTarget,async()=>{job=await api('pause','POST');renderJob();});$('resume').onclick=e=>action(e.currentTarget,resume);$('apply-pending').onclick=e=>action(e.currentTarget,()=>resume(true));$('check-tailscale').onclick=e=>action(e.currentTarget,resume);$('finish').onclick=e=>action(e.currentTarget,async()=>{await api('finish','POST');show('finished');});
  setInterval(()=>{if(csrf&&screen==='progress')poll();},1500);
  setInterval(()=>{if(screen==='progress')renderActivity();},1000);
