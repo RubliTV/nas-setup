@@ -1,11 +1,12 @@
 'use strict';
 const $=id=>document.getElementById(id);
 let dictionaries={},lang=localStorage.getItem('nas-language')||'pt-BR',csrf='',screen='login',inventory=null,plan=null,job=null,demo=false,polling=false,errorCode=null;
+let jobEpoch=0,busyActions=0,lastJobAt=0,connectionFailed=false,stepsKey="";
 let pendingInfo=null,pendingChecked=null,pendingRequest=null;
 let draft={storage:{mode:'raid1',disks:[],volume:null},users:[{name:''}],shares:[],apps:[],timezone:'America/Sao_Paulo',machine_learning:false},passwords=[];
 try{const saved=JSON.parse(localStorage.getItem('nas-setup-draft'));if(saved?.selection){draft=saved.selection;screen=saved.screen||'storage';}}catch{}
 const t=(key,values={})=>Object.entries(values).reduce((s,[k,v])=>s.replaceAll(`{${k}}`,String(v)),dictionaries[lang]?.[key]||dictionaries.en?.[key]||key);
-const text=(id,value)=>$(id).textContent=value;
+const text=(id,value)=>{if($(id).textContent!==value)$(id).textContent=value;};
 function node(tag,cls,value){const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=value;return e;}
 function error(code){errorCode=code;$('error').hidden=!code;if(code)text('error',message(code));}
 function message(code){return dictionaries[lang]?.['error_'+code]||t('error_request_invalid');}
@@ -14,7 +15,7 @@ async function api(path,method='GET',body){
  let data;try{data=await response.json();}catch{throw new Error('network_error');}
  if(!response.ok)throw new Error(data.error||(response.status===422?'request_invalid':'installation_failed'));return data;
 }
-async function action(button,fn){button.disabled=true;error(null);try{await fn();}catch(e){error(e.message);}finally{button.disabled=false;updateSelection();}}
+async function action(button,fn){jobEpoch++;busyActions++;button.disabled=true;error(null);try{await fn();}catch(e){error(e.message);}finally{busyActions--;jobEpoch++;button.disabled=false;updateSelection();}}
 function save(){localStorage.setItem('nas-setup-draft',JSON.stringify({selection:draft,screen:['storage','shares','apps'].includes(screen)?screen:'apps'}));}
 function invalidate(){plan=null;save();}
 function show(name){screen=name;document.querySelectorAll('.screen').forEach(s=>s.hidden=s.id!=='screen-'+name);document.querySelectorAll('#navigation li').forEach(s=>s.classList.toggle('active',s.dataset.step===name));error(null);if(inventory&&!job)save();window.scrollTo({top:0,behavior:'instant'});}
@@ -89,16 +90,39 @@ function raidPending(){const raid=job?.selection?.storage?.mode?.startsWith('rai
 function renderJob(){
  if(!['failed','interrupted','paused'].includes(job.status)){pendingInfo=null;pendingChecked=null;}
  const status=job.status,pending=raidPending();text('progress-title',t((pending&&status==='succeeded'?'waiting-for-sync':status)+'Title'));text('progress-description',t((pending&&status==='succeeded'?'waiting-for-sync':status)+'Description'));
- const steps=job.steps||[],done=steps.filter(s=>s.status==='succeeded').length,percent=steps.length?Math.round(done/steps.length*100):0;text('progress-caption',t('stepsComplete',{done,total:steps.length}));text('progress-percent',percent+'%');$('progress-bar').value=percent;
- $('job-steps').replaceChildren();for(const [i,s] of steps.entries()){const li=node('li');li.dataset.status=s.status;li.append(node('span','step-icon',s.status==='succeeded'?'✓':String(i+1)),node('span','',labelStep(s.id)),node('span','step-status',t(s.status)));$('job-steps').append(li);}
+ const steps=job.steps||[],done=steps.filter(s=>s.status==='succeeded').length,percent=steps.length?Math.round(done/steps.length*100):0;text('progress-caption',t('stepsComplete',{done,total:steps.length}));text('progress-percent',percent+'%');$('progress-bar').setAttribute('aria-valuenow',String(percent));$('progress-bar').setAttribute('aria-valuetext',t('stepsComplete',{done,total:steps.length}));$('progress-fill').style.width=percent+'%';
+ const nextStepsKey=JSON.stringify([job.id,lang,steps.map(s=>[s.id,s.status])]);
+ if(stepsKey!==nextStepsKey){stepsKey=nextStepsKey;$('job-steps').replaceChildren();for(const [i,s] of steps.entries()){const li=node('li');li.dataset.status=s.status;li.append(node('span','step-icon',s.status==='succeeded'?'✓':String(i+1)),node('span','',labelStep(s.id)),node('span','step-status',t(s.status)));$('job-steps').append(li);}}
+ renderActivity();
  $('pause').hidden=status!=='running';$('pause').disabled=job.pause_requested;text('pause',t(job.pause_requested?'pausePending':'pause'));$('resume').hidden=!['failed','interrupted','paused','waiting-for-sync'].includes(status);text('resume',t(status==='waiting-for-sync'?'checkSync':'resume'));$('finish').hidden=status!=='succeeded'||!!pending;
  $('job-error').hidden=!job.error;if(job.error)text('job-error',message(job.error));$('tailscale-pair').hidden=status!=='waiting-for-user';
  const raid=job.selection?.storage?.mode?.startsWith('raid')?job.resources?.raid:null;$('raid-status').hidden=!raid;if(raid)text('raid-status',`${t('raid_'+raid.state)===('raid_'+raid.state)?t('raid_unknown'):t('raid_'+raid.state)}${raid.progress!==undefined&&raid.progress!==null?' · '+Number(raid.progress).toFixed(0)+'%':''}`);
- const needsCredentials=['failed','interrupted','paused'].includes(status)&&!steps.some(s=>s.id==='storage_setup'&&s.status==='succeeded')&&(job.selection?.users||[]).length>0;$('resume-credentials').hidden=!needsCredentials;
- if(needsCredentials&&!$('resume-passwords').children.length){for(const u of job.selection.users){const f=inputField(`${t('password')} · ${u.name}`,'resume-password','password','',()=>{});f.querySelector('input').dataset.user=u.name;$('resume-passwords').append(f);}}
+ const retrying=job.setup&&['failed','interrupted','paused'].includes(status);
+ const required=retrying?(job.resume_password_users??(!steps.some(s=>s.id==='storage_setup'&&s.status==='succeeded')?(job.selection?.users||[]).map(u=>u.name):[])):[];
+ $('resume-credentials').hidden=!required.length;
+ const existing=[...document.querySelectorAll('.resume-password')].map(e=>e.dataset.user);
+ if(JSON.stringify(existing)!==JSON.stringify(required)){
+  $('resume-passwords').replaceChildren();
+  for(const name of required){const f=inputField(`${t('password')} · ${name}`,'resume-password','password','',()=>{});f.querySelector('input').dataset.user=name;$('resume-passwords').append(f);}
+ }
+ for(const input of document.querySelectorAll('.resume-password'))input.parentElement.firstElementChild.textContent=`${t('password')} · ${input.dataset.user}`;
  $('results').replaceChildren();if(job.resources?.shares?.length){const panel=node('div','panel share-results');panel.append(node('h3','',t('sharedFolders')),node('p','',demo?t('demoShares'):t('sharesReady')));const host=demo?'NAS-IP':location.hostname;for(const s of job.resources.shares){panel.append(node('strong','',s.name),node('code','',`\\\\${host}\\${s.name}`),node('code','',`smb://${host}/${encodeURIComponent(s.name)}`));}panel.append(node('p','',`${t('fileUsers')}: ${(job.selection?.users||[]).map(u=>u.name).join(', ')}`),node('p','',t('backupReminder')));if(!demo){const a=node('a','secondary',t('manageOmv'));a.href=`http://${location.hostname}/`;a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}$('results').append(panel);}
  if(['succeeded','waiting-for-sync'].includes(status))for(const [app,details] of Object.entries(job.links||{})){const panel=node('div','panel');panel.append(node('h3','',labelStep(app)),node('p','',t(demo?'demoResult':app==='tailscale'?'remoteReady':'serviceReady')));if(!demo&&details.port){const a=node('a','secondary',t('openApp'));a.href=`http://${location.hostname}:${details.port}`;a.target='_blank';a.rel='noopener noreferrer';panel.append(a);}if(!demo&&details.ips?.length)panel.append(node('p','',details.ips.join(' · ')));$('results').append(panel);}
  renderPending();
+}
+function renderActivity(){
+ const active=job?.status==='running';$('activity-panel').hidden=!active;
+ if(!active)return;
+ const step=(job.steps||[]).find(s=>s.status==='running');
+ text('activity-step',step?labelStep(step.id):t('activityPreparing'));
+ text('activity-label',step?.activity?t('activity_'+step.activity):t('activityWorking'));
+ const age=lastJobAt?Math.max(0,Date.now()-lastJobAt):0;
+ const connected=!!lastJobAt&&!connectionFailed&&age<10000;
+ $('activity-panel').dataset.connected=String(connected);$('job-steps').dataset.connected=String(connected);
+ text('activity-connection',t(connected?'activityConnected':'activityDisconnected'));
+ const hasTime=Number.isFinite(step?.started_at)&&Number.isFinite(job.observed_at);
+ $('activity-elapsed').hidden=!hasTime;
+ if(hasTime){const elapsed=Math.max(0,Math.floor(job.observed_at-step.started_at+age/1000));const duration=`${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}`;text('activity-elapsed',t('activityElapsed',{duration}));}
 }
 function renderPending(){
  $('pending-config').hidden=!pendingInfo;
@@ -116,10 +140,21 @@ async function loadPending(){
  })();
  try{await pendingRequest;}finally{pendingRequest=null;}
 }
-async function poll(){if(polling||screen==='finished')return;polling=true;try{const current=await api('job');if(current){job=current;if(screen!=='progress')show('progress');renderJob();await loadPending();if(job.status==='waiting-for-user'){const ts=await api('tailscale');const link=$('tailscale-link');link.hidden=!ts.url;if(ts.url?.startsWith('https://login.tailscale.com/'))link.href=ts.url;else link.removeAttribute('href');}}}catch(e){error(e.message);}finally{polling=false;}}
+async function poll(force=false){
+ if(polling||(!force&&busyActions)||screen==='finished')return;
+ const epoch=jobEpoch;polling=true;
+ try{
+  const current=await api('job');if(epoch!==jobEpoch)return;
+  lastJobAt=Date.now();if(connectionFailed)error(null);connectionFailed=false;
+  if(current){job=current;if(screen!=='progress')show('progress');renderJob();await loadPending();
+   if(job.status==='waiting-for-user'){const ts=await api('tailscale');if(epoch!==jobEpoch)return;const link=$('tailscale-link');link.hidden=!ts.url;if(ts.url?.startsWith('https://login.tailscale.com/'))link.href=ts.url;else link.removeAttribute('href');}
+  }
+ }catch(e){if(epoch===jobEpoch){connectionFailed=true;renderActivity();error(e.message);}}
+ finally{polling=false;}
+}
 async function entered(){
  inventory=await api('inventory');if(!draft.shares.length&&!localStorage.getItem('nas-setup-draft'))draft.shares=['files','media','backups'].map(folder=>({name:t('folder_'+folder),folder,permissions:{'':'rw'},enabled:true}));
- if(inventory.provisioning_enabled===false)draft.storage={mode:'existing',disks:[],volume:draft.storage.volume};renderInventory();renderUsers();renderShares();updateSelection();const savedScreen=screen;await poll();if(!job)show(['storage','shares','apps'].includes(savedScreen)?savedScreen:'storage');
+ if(inventory.provisioning_enabled===false)draft.storage={mode:'existing',disks:[],volume:draft.storage.volume};renderInventory();renderUsers();renderShares();updateSelection();const savedScreen=screen;await poll(true);if(!job)show(['storage','shares','apps'].includes(savedScreen)?savedScreen:'storage');
 }
 async function resume(approvePending=false){
  await loadPending();
@@ -142,5 +177,6 @@ async function init(){
  $('install').onclick=e=>action(e.currentTarget,async()=>{const creds=Object.fromEntries(draft.users.map((u,i)=>[u.name.trim(),passwords[i]?.password||'']));job=await api('setup/start','POST',{plan_id:plan.plan_id,confirmation:$('erase-confirmation').value,erase_disks:[...document.querySelectorAll('.erase-check:checked')].map(c=>c.value),passwords:creds});passwords=[];document.querySelectorAll('input[type=password]').forEach(i=>i.value='');localStorage.removeItem('nas-setup-draft');show('progress');renderJob();});
  $('pause').onclick=e=>action(e.currentTarget,async()=>{job=await api('pause','POST');renderJob();});$('resume').onclick=e=>action(e.currentTarget,resume);$('apply-pending').onclick=e=>action(e.currentTarget,()=>resume(true));$('check-tailscale').onclick=e=>action(e.currentTarget,resume);$('finish').onclick=e=>action(e.currentTarget,async()=>{await api('finish','POST');show('finished');});
  setInterval(()=>{if(csrf&&screen==='progress')poll();},1500);
+ setInterval(()=>{if(screen==='progress')renderActivity();},1000);
 }
 init().catch(e=>error(e.message));

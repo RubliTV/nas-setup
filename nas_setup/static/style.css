@@ -4,3 +4,19 @@
 @media(max-width:1100px){.user-row{grid-template-columns:1fr 1fr}.user-row .text-button{justify-self:start}.disk-grid{gap:12px}}@media(max-width:800px){.disk-grid{grid-template-columns:1fr 1fr}.disk-card{padding:15px!important}.disk-model{font-size:12px}.disk-size{font-size:11px}.capacity-summary{gap:12px}.capacity-summary strong{font-size:23px}.user-row{grid-template-columns:1fr}.user-row label{margin:0!important}.user-row{padding-top:18px}.user-row .text-button{margin:0}.share-heading{align-items:flex-start;flex-direction:column;gap:10px}.share-name{max-width:none}.permissions-matrix{padding-left:0;grid-template-columns:1fr}.section-label{gap:10px;align-items:flex-start}.section-label>span{max-width:42%;text-align:right}.section-label .secondary{padding:8px 12px;white-space:nowrap}.actions{flex-wrap:wrap}.actions>span{max-width:none}.actions .primary{margin-left:auto}.share-results{min-width:0}.storage-panel{padding:20px}.disk-state{font-size:9px}.erase-target>span{min-width:0}.app-settings{padding:20px}}@media(max-width:360px){.disk-grid{grid-template-columns:1fr}.capacity-summary{grid-template-columns:1fr}}
 
 .capacity-summary>div:nth-child(2)>strong{font-size:18px;line-height:1.45;letter-spacing:-.25px}
+
+/* Overall progress measures completed steps; motion separately indicates activity. */
+.progress-track{height:8px;background:#eaf0e7;border-radius:6px;overflow:hidden}
+#progress-fill{height:100%;width:0;background:#5a9368;border-radius:6px;transition:width .7s ease}
+.progress-explanation{margin:10px 0 20px}
+.activity-panel{position:relative;overflow:hidden;border:1px solid #d8e6d8;border-radius:9px;background:#f5f9f2;padding:18px}
+.activity-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.activity-heading strong{font-size:13px}.activity-heading span{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+#activity-label{margin:9px 0 6px;font-size:12px;color:#425d4b}#activity-connection{font-size:10px;color:var(--muted)}
+.activity-sweep{position:absolute;inset:0 auto auto -35%;height:3px;width:35%;background:#79a16a;animation:activity-sweep 2s ease-in-out infinite}
+.activity-panel[data-connected=false] .activity-sweep{animation:none;display:none}
+.activity-panel[data-connected=false]{background:#fff8ee;border-color:#eadfc8}
+@keyframes activity-sweep{to{transform:translateX(390%)}}
+@media(max-width:480px){.activity-heading{align-items:flex-start;flex-direction:column;gap:5px}}
+
+.job-steps[data-connected=false] li[data-status=running] .step-icon{animation:none}

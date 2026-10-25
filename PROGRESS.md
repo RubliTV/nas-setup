@@ -88,3 +88,15 @@ OMV guest. Final runtime update preserved saved jobs/configuration/certificate;
 real root/UID backup checks passed. Release runtime matches the tested final
 candidate byte-for-byte across 31 runtime files. Sanitized evidence is archived
 under tests/integration/evidence/v022-*. Physical NAS performance is unmeasured.
+
+## v0.2.3 progress and password prompts
+
+Added durable step timing and scoped allowlisted operation reporting. The browser
+smoothly transitions completed-step progress and separately shows activity,
+elapsed time and connection status. It preserves row animations between polls,
+respects reduced motion, and stops animation on stale/failed status updates.
+Resume asks for only uncompleted accounts, reuses verified journaled accounts,
+removes accepted passwords from the DOM, and rejects stale pre-action poll data.
+184 tests pass on Python 3.12/3.15; existing and new Chrome bilingual/mobile suites
+pass. Independent review is clean after offline icon follow-up. No disk setup or
+application image changes; see docs/v023-progress-validation.md for boundaries.

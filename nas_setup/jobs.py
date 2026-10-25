@@ -56,7 +56,19 @@ class JobStore:
     def step(self,identity,step,status):
         def mutate(job):
             for s in job['steps']:
-                if s['id']==step:s['status']=status
+                if s['id']==step:
+                    s['status']=status
+                    s.pop('activity',None)
+                    if status=='running':s['started_at']=time.time()
+        return self.edit(identity,mutate)
+
+    def activity(self,identity,step,code):
+        from .progress import ACTIVITIES
+        if code not in ACTIVITIES:raise ValueError('Unknown activity identifier')
+        def mutate(job):
+            if job['status']!='running':return
+            for record in job['steps']:
+                if record['id']==step and record['status']=='running':record['activity']=code
         return self.edit(identity,mutate)
 
     def interrupt_running(self):

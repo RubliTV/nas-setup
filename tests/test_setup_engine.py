@@ -231,3 +231,36 @@ def test_pending_configuration_offer_requires_csrf_and_authenticated_session(tmp
     auth=client.post('/api/demo-login').json()
     assert client.post('/api/setup/recovery',json={}).status_code==403
     assert client.post('/api/setup/recovery',json={},headers={'X-CSRF-Token':auth['csrf']}).json()['error']=='job_missing'
+
+
+def test_resume_only_requests_passwords_for_unfinished_accounts(tmp_path, monkeypatch):
+    from nas_setup.journal import OperationJournal
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection())
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE',
+        'erase_disks':['demo-disk-1','demo-disk-2'],'passwords':{'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}})
+    e.store.update(job['id'],status='failed')
+    journal=OperationJournal(e.wizard.directory/job['id']/'journal')
+    journal.perform('user.ana',lambda:{'name':'ana','uid':1001})
+    assert e.call('job')['resume_password_users']==['bruno']
+    resumed=request(e,'resume',{'passwords':{'bruno':'mnopqrstuvwx'}})
+    assert resumed['status']=='running'
+    assert e.call('job')['resume_password_users']==[]
+    e.store.update(job['id'],status='failed')
+    journal.perform('user.bruno',lambda:{'name':'bruno','uid':1002})
+    assert e.call('job')['resume_password_users']==[]
+    assert request(e,'resume',{})['status']=='running'
+
+
+def test_uncertain_account_creation_still_requires_credentials(tmp_path,monkeypatch):
+    from nas_setup.journal import OperationJournal
+    e=engine(tmp_path);monkeypatch.setattr(e.wizard,'_launch',lambda job:None)
+    p=request(e,'plan',selection())
+    job=request(e,'start',{'plan_id':p['plan_id'],'confirmation':'ERASE',
+        'erase_disks':['demo-disk-1','demo-disk-2'],'passwords':{'ana':'abcdefghijkl','bruno':'mnopqrstuvwx'}})
+    journal=OperationJournal(e.wizard.directory/job['id']/'journal')
+    def interrupted(): raise RuntimeError('lost response')
+    with pytest.raises(RuntimeError): journal.perform('user.ana',interrupted)
+    e.store.update(job['id'],status='failed')
+    assert e.call('job')['resume_password_users']==['ana','bruno']
+    with pytest.raises(SetupError,match='password_required'):request(e,'resume',{})

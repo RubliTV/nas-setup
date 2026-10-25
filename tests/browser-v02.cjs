@@ -120,6 +120,7 @@ const net=require('node:net');
   await page.unroute('**/api/job');
   let retryJob=await page.evaluate(async()=>await (await fetch('/api/job')).json());
   retryJob.status='failed';retryJob.error='omv_configuration_changed';
+  delete retryJob.resume_password_users; // legacy response, before per-account metadata
   retryJob.steps=retryJob.steps.map(s=>({...s,status:s.id==='storage_prerequisites'?'succeeded':s.id==='storage_setup'?'failed':'pending'}));
   retryJob.resources={};
   await page.route('**/api/job',route=>route.fulfill({json:retryJob}));
@@ -149,7 +150,7 @@ const net=require('node:net');
   await page.locator('#apply-pending').click();await page.locator('#pause').waitFor({state:'visible'});
   assert.equal(requests.filter(r=>r.url.endsWith('/resume')).at(-1).body.pending_id,'pending-test-token');
   assert(await page.locator('#screen-progress').isVisible());
-  assert.equal(await page.locator('#resume-passwords input').first().inputValue(),'','accepted retry clears passwords');
+  assert.equal(await page.locator('#resume-passwords input').count(),0,'accepted retry removes password fields');
   assert.deepEqual(errors,[]);console.log('v0.2 browser integration passed: layouts, permissions, secrets, consent, reload, results, PT/EN and mobile.');
  }finally{await browser?.close();server.kill();rmSync(state,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

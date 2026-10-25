@@ -1,6 +1,7 @@
 """Durable installation orchestration; no shell commands accepted from the UI."""
 import threading
 from .jobs import JobStore
+from .progress import reporting
 from .models import Selection, SetupError, make_plan
 
 class Engine:
@@ -29,7 +30,7 @@ class Engine:
             return job
         if payload:raise SetupError('operation_invalid')
         if operation=='inventory':return self.wizard.inventory()
-        if operation=='job':return self.wizard.refresh(self.store.get())
+        if operation=='job':return self.wizard.present(self.wizard.refresh(self.store.get()))
         if operation=='tailscale':return self.system.tailscale_status()
         if operation=='pause':
             with self.lock:
@@ -55,30 +56,31 @@ class Engine:
 
     def _run(self,job):
         identity=job['id'];selection=Selection(**job['selection']);step=None
-        try:
-            for record in job['steps']:
-                step=record['id']
-                if self.store.get(identity)['pause_requested']:
-                    self.store.update(identity,status='paused');return
-                self.store.step(identity,step,'running')
-                # Always re-inspect the host and mounts, including on retry.
-                make_plan(selection,self.system.inventory())
-                if step=='preflight':self.system.preflight(selection)
-                elif step=='docker':self.system.install_docker(selection)
-                elif step in ('immich','jellyfin'):self.system.install_app(step,selection)
-                elif step=='tailscale':self.system.install_tailscale()
-                elif step=='verify':
-                    result=self.system.verify(selection)
-                    self.store.update(identity,links=result['links'])
-                    if result.get('waiting'):
-                        self.store.step(identity,step,'waiting-for-user')
-                        self.store.update(identity,status='waiting-for-user');return
-                self.store.step(identity,step,'succeeded')
-            self.store.update(identity,status='succeeded')
-        except Exception as exc:
-            code=exc.code if isinstance(exc,SetupError) else 'installation_failed'
-            if hasattr(self.system,'diagnostic'):
-                try:self.system.diagnostic(step or 'job',type(exc).__name__+': '+str(exc))
-                except OSError:pass
-            if step:self.store.step(identity,step,'failed')
-            self.store.update(identity,status='failed',error=code)
+        with reporting(lambda code:self.store.activity(identity,step,code)):
+            try:
+                for record in job['steps']:
+                    step=record['id']
+                    if self.store.get(identity)['pause_requested']:
+                        self.store.update(identity,status='paused');return
+                    self.store.step(identity,step,'running')
+                    # Always re-inspect the host and mounts, including on retry.
+                    make_plan(selection,self.system.inventory())
+                    if step=='preflight':self.system.preflight(selection)
+                    elif step=='docker':self.system.install_docker(selection)
+                    elif step in ('immich','jellyfin'):self.system.install_app(step,selection)
+                    elif step=='tailscale':self.system.install_tailscale()
+                    elif step=='verify':
+                        result=self.system.verify(selection)
+                        self.store.update(identity,links=result['links'])
+                        if result.get('waiting'):
+                            self.store.step(identity,step,'waiting-for-user')
+                            self.store.update(identity,status='waiting-for-user');return
+                    self.store.step(identity,step,'succeeded')
+                self.store.update(identity,status='succeeded')
+            except Exception as exc:
+                code=exc.code if isinstance(exc,SetupError) else 'installation_failed'
+                if hasattr(self.system,'diagnostic'):
+                    try:self.system.diagnostic(step or 'job',type(exc).__name__+': '+str(exc))
+                    except OSError:pass
+                if step:self.store.step(identity,step,'failed')
+                self.store.update(identity,status='failed',error=code)

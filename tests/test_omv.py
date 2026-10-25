@@ -687,3 +687,21 @@ def test_pending_configuration_rejects_xml_change_during_apply(tmp_path,monkeypa
         adapter.apply_pending_configuration(plan,journal,expected)
     assert sum(c[0]=='config_apply' for c in calls)==1
     assert not any(c[0]=='target_check' for c in calls)
+
+
+def test_completed_account_is_verified_and_reused_without_a_password(tmp_path):
+    from types import SimpleNamespace
+    from nas_setup.journal import OperationJournal
+    journal=OperationJournal(tmp_path/'journal')
+    journal.perform('user.ana',lambda:{'name':'ana','uid':1001})
+    calls=[]
+    def run(args,**kwargs):
+        calls.append(args)
+        if args==['getent','passwd','ana']:
+            return SimpleNamespace(returncode=0,stdout='ana:x:1001:100:nas-setup-owner:/home/ana:/usr/sbin/nologin\n')
+        if args==['id','-nG','ana']:return SimpleNamespace(returncode=0,stdout='users\n')
+        raise AssertionError(args)
+    adapter=omv.OmvProvisioner(SimpleNamespace(state=tmp_path,run=run))
+    assert adapter._user('ana',None,'owner',journal)=={'name':'ana','uid':1001}
+    assert calls==[['getent','passwd','ana'],['id','-nG','ana']]
+    with pytest.raises(SetupError):adapter._user('ana',None,'different-owner',journal)

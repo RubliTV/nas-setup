@@ -37,7 +37,7 @@ def installation(tmp_path):
         connection.execute('INSERT INTO jobs VALUES (?, ?, ?)', ('job-one', json.dumps({'id': 'job-one', 'status': 'failed', 'steps': [{'id': 'prepare', 'status': 'failed'}]}), 1))
     source = tmp_path / 'release'
     source.mkdir()
-    (source / 'pyproject.toml').write_text('[project]\nversion = "0.2.2"\n')
+    (source / 'pyproject.toml').write_text('[project]\nversion = "0.2.3"\n')
     (source / 'requirements.lock').write_text('')
     conf = tmp_path / 'etc/nas-setup'
     conf.mkdir(parents=True)
@@ -122,7 +122,7 @@ def test_active_or_stale_running_job_rejected_before_mutation(installation, stat
     assert not any(command[:2] == ('systemctl', 'stop') for command in host.commands)
 
 
-@pytest.mark.parametrize('installed_version', ['0.2.0', '0.2.1', '0.2.2'])
+@pytest.mark.parametrize('installed_version', ['0.2.0', '0.2.1', '0.2.2', '0.2.3'])
 def test_failed_job_upgrade_preserves_state_certificate_and_command_link(installation, installed_version):
     source, destination, state, conf, link = installation
     (destination / 'source/pyproject.toml').write_text('[project]\nversion = '+repr(installed_version)+'\n')

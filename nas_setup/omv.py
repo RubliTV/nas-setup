@@ -3,6 +3,7 @@
 RPC contracts audited at OMV e0c7b63bf55064eaa6a5e476800465d27e9b86a5.
 Live storage evidence: docs/v02-vm-validation.md. Physical hardware needs separate testing.
 """
+from .progress import report
 import hashlib
 import json
 import os
@@ -141,6 +142,7 @@ class OmvProvisioner:
                 'provisioning_reason':None if ADAPTER_VALIDATED else 'provisioning_unvalidated'}
 
     def prepare(self,selection,plan):
+        report('preparing_tools')
         self._require_validated()
         from .setup_models import SetupSelection
         selection=SetupSelection.model_validate(selection).model_dump()
@@ -245,6 +247,7 @@ class OmvProvisioner:
         return json.loads(self.system.run(['omv-confdbadm','read',model]).stdout)
 
     def _apply(self):
+        report('applying_configuration')
         # Exact configuration snapshot prevents applying known unrelated edits.
         # OMV serializes its own applyChanges while deploying generated config.
         self._mutate('config_apply',{'modules':[],'force':False})
@@ -599,6 +602,7 @@ class OmvProvisioner:
         self._verify_packages(selected['storage']['mode'].startswith('raid'))
         self._start_context(journal,raid=selected['storage']['mode'].startswith('raid'))
         owner=journal.perform('adapter.owner',lambda:{'id':uuid.uuid4().hex})['id']
+        report('preparing_storage')
         storage=selected['storage'];targets=plan.get('targets',[]);md=None
         if storage['mode']=='existing':volume=self._mounted(storage['volume'])
         else:
@@ -611,9 +615,11 @@ class OmvProvisioner:
                 target=md['devicefile'];guard=lambda:self._verify_array(md,targets)
             filesystem=self._format(target,journal,guard)
             volume=self._mount_new(filesystem,owner,journal)
+        report('creating_users')
         users=[]
         for user in selected['users']:
             name=user['name'];users.append(self._user(name,passwords.get(name),owner,journal))
+        report('creating_shares')
         shares=[self._share(share,volume,owner,journal) for share in selected['shares']]
         if shares:self._enable_smb(journal)
         if users or shares:

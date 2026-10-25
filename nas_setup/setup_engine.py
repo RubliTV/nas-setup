@@ -11,6 +11,7 @@ from pydantic import Field, SecretStr, field_validator
 from .models import SetupError, Selection, make_plan
 from .setup_models import StrictModel, SetupSelection, plan_setup, inventory_fingerprint
 from .journal import OperationJournal
+from .progress import reporting
 
 
 class SetupStart(StrictModel):
@@ -118,10 +119,28 @@ class WizardEngine:
         if not self.inventory().get('provisioning_enabled'):raise SetupError('provisioning_unvalidated')
         return plan
 
-    def _credentials(self,body,selection):
+    def _credentials(self,body,selection,required=None):
         names={u['name'] for u in selection['users']}
-        if set(body.passwords)!=names:raise SetupError('password_required')
-        return {name:body.passwords[name].get_secret_value() for name in names}
+        required=names if required is None else set(required)
+        if not required.issubset(body.passwords) or not set(body.passwords).issubset(names):raise SetupError('password_required')
+        return {name:body.passwords[name].get_secret_value() for name in required}
+
+    def required_password_users(self,job):
+        if not job.get('setup') or job['status'] not in {'failed','paused','interrupted'}:return []
+        if any(s['id']=='storage_setup' and s['status']=='succeeded' for s in job['steps']):return []
+        journal=OperationJournal(self.directory/job['id']/'journal')
+        missing=[]
+        for user in job['selection']['users']:
+            name=user['name'];record=journal.get('user.'+name)
+            # An uncertain dispatched operation is not proof of a usable account.
+            # Provisioning still re-verifies ownership/UID before reusing the user.
+            if not (record and record['status']=='completed' and record.get('result')
+                    and record['result'].get('name')==name):missing.append(name)
+        return missing
+
+    def present(self,job):
+        if job is None:return None
+        return {**job,'observed_at':time.time(),'resume_password_users':self.required_password_users(job)}
 
     def start(self,body,session):
         with self.engine.lock:
@@ -178,7 +197,7 @@ class WizardEngine:
                         offer['snapshot']!=self.provisioner.pending_configuration(job['plan'],journal)):
                         raise SetupError('omv_configuration_changed')
                     pending=offer['snapshot']
-                credentials=self._credentials(body,job['selection'])
+                credentials=self._credentials(body,job['selection'],self.required_password_users(job))
                 if body.plan_id is not None:self.plans.pop(body.plan_id)
                 self.grants[job['id']]=session
                 private_json(self.directory/job['id']/'credentials.json',credentials)
@@ -216,67 +235,68 @@ class WizardEngine:
         identity=job['id'];step=None;credentials_path=self.directory/identity/'credentials.json'
         journal=OperationJournal(self.directory/identity/'journal')
         selection=job['selection'];plan=job['plan']
-        try:
-            pending=self.pending_runs.pop(identity,None)
-            if pending:
-                step='storage_prerequisites'
-                self.engine.store.step(identity,step,'running')
-                self.provisioner.apply_pending_configuration(plan,journal,pending)
-                self.engine.store.step(identity,step,'succeeded')
-            for record in job['steps']:
-                step=record['id']
-                current=self.engine.store.get(identity)
-                if current['pause_requested']:
-                    self.engine.store.update(identity,status='paused');return
-                if record['status']=='succeeded' and step!='raid_sync':
-                    if step=='storage_setup':self.provisioner.status(current['resources'])
-                    continue
-                self.engine.store.step(identity,step,'running')
-                if step=='storage_prerequisites':self.provisioner.prepare(selection,plan)
-                elif step=='storage_setup':
-                    if identity not in self.grants:raise SetupError('confirmation_required')
-                    if not credentials_path.exists():raise SetupError('credentials_required')
-                    passwords=json.loads(credentials_path.read_text())
-                    try:resources=self.provisioner.provision(selection,plan,journal,passwords)
-                    finally:passwords.clear()
-                    self.engine.store.update(identity,resources=resources)
-                    credentials_path.unlink(missing_ok=True)
-                elif step=='raid_sync':
+        with reporting(lambda code:self.engine.store.activity(identity,step,code)):
+            try:
+                pending=self.pending_runs.pop(identity,None)
+                if pending:
+                    step='storage_prerequisites'
+                    self.engine.store.step(identity,step,'running')
+                    self.provisioner.apply_pending_configuration(plan,journal,pending)
+                    self.engine.store.step(identity,step,'succeeded')
+                for record in job['steps']:
+                    step=record['id']
                     current=self.engine.store.get(identity)
-                    raid=self.provisioner.status(current['resources'])
-                    self.engine.store.update(identity,resources={**current['resources'],'raid':raid})
-                    if raid['state']=='degraded':raise SetupError('raid_degraded')
-                    if raid['state']!='healthy':
-                        self.engine.store.step(identity,step,'waiting-for-sync')
-                        self.engine.store.update(identity,status='waiting-for-sync');return
-                else:
-                    resources=self.engine.store.get(identity)['resources']
-                    self.provisioner.status(resources)
-                    app_selection=Selection(apps=selection['apps'] or ['tailscale'],volume=resources['volume'],
-                        database_volume=resources['volume'],machine_learning=selection['machine_learning'],timezone=selection['timezone'])
-                    if selection['apps']:make_plan(app_selection,self.system.inventory())
-                    if step=='docker':self.system.install_docker(app_selection)
-                    elif step in ('immich','jellyfin'):
-                        if step=='jellyfin' and resources.get('media_path') and hasattr(self.system,'approve_media'):
-                            self.system.approve_media(resources)
-                        self.system.install_app(step,app_selection)
-                    elif step=='tailscale':self.system.install_tailscale()
-                    elif step=='verify':
-                        result=self.system.verify(app_selection) if selection['apps'] else {'links':{},'waiting':False}
-                        self.engine.store.update(identity,links=result['links'])
-                        if result.get('waiting'):
-                            self.engine.store.step(identity,step,'waiting-for-user')
-                            self.engine.store.update(identity,status='waiting-for-user');return
-                self.engine.store.step(identity,step,'succeeded')
-            self.engine.store.update(identity,status='succeeded')
-        except Exception as exc:
-            code=exc.code if isinstance(exc,SetupError) else 'installation_failed'
-            # Do not serialize exception messages here: third-party RPC errors may contain passwords.
-            if hasattr(self.system,'diagnostic'):
-                try:self.system.diagnostic(step or 'setup',code)
-                except OSError:pass
-            if step:self.engine.store.step(identity,step,'failed')
-            self.engine.store.update(identity,status='failed',error=code)
-            self.grants.pop(identity,None)
-        finally:
-            credentials_path.unlink(missing_ok=True)
+                    if current['pause_requested']:
+                        self.engine.store.update(identity,status='paused');return
+                    if record['status']=='succeeded' and step!='raid_sync':
+                        if step=='storage_setup':self.provisioner.status(current['resources'])
+                        continue
+                    self.engine.store.step(identity,step,'running')
+                    if step=='storage_prerequisites':self.provisioner.prepare(selection,plan)
+                    elif step=='storage_setup':
+                        if identity not in self.grants:raise SetupError('confirmation_required')
+                        if not credentials_path.exists():raise SetupError('credentials_required')
+                        passwords=json.loads(credentials_path.read_text())
+                        try:resources=self.provisioner.provision(selection,plan,journal,passwords)
+                        finally:passwords.clear()
+                        self.engine.store.update(identity,resources=resources)
+                        credentials_path.unlink(missing_ok=True)
+                    elif step=='raid_sync':
+                        current=self.engine.store.get(identity)
+                        raid=self.provisioner.status(current['resources'])
+                        self.engine.store.update(identity,resources={**current['resources'],'raid':raid})
+                        if raid['state']=='degraded':raise SetupError('raid_degraded')
+                        if raid['state']!='healthy':
+                            self.engine.store.step(identity,step,'waiting-for-sync')
+                            self.engine.store.update(identity,status='waiting-for-sync');return
+                    else:
+                        resources=self.engine.store.get(identity)['resources']
+                        self.provisioner.status(resources)
+                        app_selection=Selection(apps=selection['apps'] or ['tailscale'],volume=resources['volume'],
+                            database_volume=resources['volume'],machine_learning=selection['machine_learning'],timezone=selection['timezone'])
+                        if selection['apps']:make_plan(app_selection,self.system.inventory())
+                        if step=='docker':self.system.install_docker(app_selection)
+                        elif step in ('immich','jellyfin'):
+                            if step=='jellyfin' and resources.get('media_path') and hasattr(self.system,'approve_media'):
+                                self.system.approve_media(resources)
+                            self.system.install_app(step,app_selection)
+                        elif step=='tailscale':self.system.install_tailscale()
+                        elif step=='verify':
+                            result=self.system.verify(app_selection) if selection['apps'] else {'links':{},'waiting':False}
+                            self.engine.store.update(identity,links=result['links'])
+                            if result.get('waiting'):
+                                self.engine.store.step(identity,step,'waiting-for-user')
+                                self.engine.store.update(identity,status='waiting-for-user');return
+                    self.engine.store.step(identity,step,'succeeded')
+                self.engine.store.update(identity,status='succeeded')
+            except Exception as exc:
+                code=exc.code if isinstance(exc,SetupError) else 'installation_failed'
+                # Do not serialize exception messages here: third-party RPC errors may contain passwords.
+                if hasattr(self.system,'diagnostic'):
+                    try:self.system.diagnostic(step or 'setup',code)
+                    except OSError:pass
+                if step:self.engine.store.step(identity,step,'failed')
+                self.engine.store.update(identity,status='failed',error=code)
+                self.grants.pop(identity,None)
+            finally:
+                credentials_path.unlink(missing_ok=True)

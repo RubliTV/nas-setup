@@ -14,6 +14,7 @@ import time
 import urllib.request
 import yaml
 from .models import SetupError, Selection
+from .progress import report
 from .storage import volume_path, safe_directory
 
 DATA=Path(__file__).parent/'data'
@@ -97,6 +98,7 @@ class DemoSystem:
     def install_tailscale(self):time.sleep(self.delay);self.installed.add('tailscale')
     def tailscale_status(self):return {'state':'demo','url':None,'ips':[]}
     def verify(self,selection):
+        report('checking_services')
         time.sleep(self.delay)
         return {'waiting':False,'links':{a:{'port':{'immich':2283,'jellyfin':8096}.get(a),'ready':True,'demo':True} for a in selection.apps}}
     def finish(self):pass
@@ -287,6 +289,7 @@ class System:
         self.run(['apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install',*packages],timeout=1800)
 
     def install_docker(self,selection):
+        report('installing_docker')
         ready=self.run(['dpkg-query','-W','-f=${Status}','openmediavault-omvextrasorg'],check=False)
         if 'install ok installed' not in ready.stdout:
             try:
@@ -337,6 +340,7 @@ class System:
         cfg=project/'compose.yml';cfg.write_text(yaml.safe_dump(compose,sort_keys=False));cfg.chmod(0o600)
         saved=project/'selection.json';saved.write_text(selection.model_dump_json());saved.chmod(0o600)
         self.run(['docker','compose','-f',str(cfg),'config','--quiet'])
+        report('downloading_app')
         self.run(['docker','compose','-f',str(cfg),'pull'],timeout=1800)
         # Recheck after slow downloads, immediately before enabling the stack.
         self.guard_stack(app)
@@ -363,7 +367,9 @@ WantedBy=multi-user.target
 '''.format(units=' '.join(units),app=app,cfg=cfg)
         Path('/etc/systemd/system/nas-app-'+app+'.service').write_text(unit)
         self.run(['systemctl','daemon-reload'])
+        report('starting_app')
         self.run(['systemctl','enable','--now','nas-app-'+app+'.service'],timeout=120)
+        report('checking_app')
         self.wait_app(app,timeout=900 if app=='immich' else 300)
 
     def prepare_immich_database(self):
@@ -398,6 +404,7 @@ WantedBy=multi-user.target
         return {'state':data.get('BackendState','unknown'),'url':url,'ips':data.get('TailscaleIPs',[])}
 
     def install_tailscale(self):
+        report('installing_tailscale')
         if self.tailscale_status()['state']=='not_installed':
             for remote,local in [('trixie.noarmor.gpg','/usr/share/keyrings/tailscale-archive-keyring.gpg'),
                                  ('trixie.tailscale-keyring.list','/etc/apt/sources.list.d/tailscale.list')]:
@@ -414,6 +421,7 @@ WantedBy=multi-user.target
         elif state not in ('Running','NeedsMachineAuth'):raise SetupError('tailscale_existing_config')
 
     def verify(self,selection):
+        report('checking_services')
         links={}
         for app in selection.apps:
             if app=='tailscale':continue
