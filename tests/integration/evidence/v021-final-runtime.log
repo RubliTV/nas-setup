@@ -1,0 +1,3 @@
+PASS final runtime patch update: unchanged completed job, configuration/certificate, verified HTTPS login and healthy RAID1
+PASS automatic mdadm-only repair clears pending marker and preserves verified array/configuration
+FINAL PATCH RUNTIME PASS 63350a5ff84e5e37181f5a5c37a6fd719e66d40b50a087535b612a45de6709a0

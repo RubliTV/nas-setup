@@ -14,6 +14,7 @@ import time
 import urllib.request
 import yaml
 from .models import SetupError, Selection
+from .progress import report
 from .storage import volume_path, safe_directory
 
 DATA=Path(__file__).parent/'data'
@@ -53,6 +54,7 @@ def render_compose(app,selection,data,db,secret,owner=None):
         config=yaml.safe_load((DATA/'immich.yml').read_text())
         services=config['services'];server=services['immich-server']
         server['image']='ghcr.io/immich-app/immich-server:'+MANIFEST['immich']
+        server['depends_on']={name:{'condition':'service_healthy'} for name in ('database','redis')}
         server['volumes']=[bind(data/'library','/data'),bind('/etc/localtime','/etc/localtime',True)]
         env={'DB_PASSWORD':secret,'DB_USERNAME':'postgres','DB_DATABASE_NAME':'immich','TZ':selection.timezone,
              'IMMICH_MACHINE_LEARNING_ENABLED':'true' if selection.machine_learning else 'false'}
@@ -96,9 +98,9 @@ class DemoSystem:
     def install_tailscale(self):time.sleep(self.delay);self.installed.add('tailscale')
     def tailscale_status(self):return {'state':'demo','url':None,'ips':[]}
     def verify(self,selection):
+        report('checking_services')
         time.sleep(self.delay)
         return {'waiting':False,'links':{a:{'port':{'immich':2283,'jellyfin':8096}.get(a),'ready':True,'demo':True} for a in selection.apps}}
-    def finish(self):pass
 
 class System:
     demo=False
@@ -188,8 +190,8 @@ class System:
                 or container.get('Config',{}).get('Image')!=expected[service]['image']):
                 raise SetupError('existing_installation')
             # An owner label alone must not authorize changed storage bindings.
-            actual={(m.get('Source'),m.get('Destination')) for m in container.get('Mounts',[]) if m.get('Type')=='bind'}
-            desired={(v['source'],v['target']) for v in expected[service].get('volumes',[]) if v.get('type')=='bind'}
+            actual={(m.get('Source'),m.get('Destination'),m.get('RW')) for m in container.get('Mounts',[]) if m.get('Type')=='bind'}
+            desired={(v['source'],v['target'],not v.get('read_only',False)) for v in expected[service].get('volumes',[]) if v.get('type')=='bind'}
             if actual!=desired:raise SetupError('existing_installation')
             running=running or container.get('State',{}).get('Running',False)
         return running
@@ -199,6 +201,43 @@ class System:
         ids={selection.volume}
         if app=='immich':ids.add(selection.database_volume)
         return {identity:str(volume_path(identity,inventory)) for identity in ids}
+
+    def media_registration(self,record):
+        mounts=json.loads(self.run(['omv-confdbadm','read','conf.system.filesystem.mountpoint']).stdout)
+        shares=json.loads(self.run(['omv-confdbadm','read','conf.system.sharedfolder']).stdout)
+        matching=[m for m in mounts if m.get('dir')==record['mount_path']]
+        if len(matching)!=1:return False
+        matching_shares=[item for item in shares if item.get('uuid')==record['share_uuid']]
+        if len(matching_shares)!=1:return False
+        share=matching_shares[0]
+        return (share.get('mntentref')==matching[0]['uuid']
+                and str(Path(record['mount_path'])/share['reldirpath'])==record['path'])
+
+    def approve_media(self,resources):
+        root=volume_path(resources['volume'],self.inventory())
+        path=Path(resources['media_path'])
+        matches=[share for share in resources['shares'] if share.get('folder')=='media' and share['path']==str(path)]
+        if len(matches)!=1 or not matches[0].get('uuid'):raise SetupError('unsafe_storage')
+        if not path.is_dir() or path.resolve()!=path or path==root or not path.is_relative_to(root):
+            raise SetupError('unsafe_storage')
+        record={'volume':resources['volume'],'mount_path':str(root),'path':str(path),'share_uuid':matches[0]['uuid']}
+        if not self.media_registration(record):raise SetupError('storage_changed')
+        project=self.project('jellyfin');project.mkdir(exist_ok=True,mode=0o700)
+        target=project/'approved-media.json'
+        if target.exists() and json.loads(target.read_text())!=record:raise SetupError('existing_installation')
+        from .setup_engine import private_json
+        private_json(target,record)
+
+    def media_binding(self):
+        target=self.project('jellyfin')/'approved-media.json'
+        if not target.exists():return None
+        record=json.loads(target.read_text())
+        root=volume_path(record['volume'],self.inventory());path=Path(record['path'])
+        if str(root)!=record['mount_path']:raise SetupError('storage_changed')
+        if not path.is_dir() or path.resolve()!=path or path==root or not path.is_relative_to(root):
+            raise SetupError('unsafe_storage')
+        if not self.media_registration(record):raise SetupError('storage_changed')
+        return path
 
     def guard_stack(self,app):
         project=self.project(app)
@@ -214,7 +253,9 @@ class System:
                     if source==Path('/etc/localtime'):continue
                     if not source.exists() or source.resolve()!=source:raise SetupError('unsafe_storage')
                     if not any(source.is_relative_to(Path(root)/'.nas-setup') for root in expected.values()):
-                        raise SetupError('unsafe_storage')
+                        approved=self.media_binding() if app=='jellyfin' else None
+                        if source!=approved or mount.get('target')!='/media' or mount.get('read_only') is not True:
+                            raise SetupError('unsafe_storage')
         return expected
 
     def check_port(self,port):
@@ -247,6 +288,7 @@ class System:
         self.run(['apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install',*packages],timeout=1800)
 
     def install_docker(self,selection):
+        report('installing_docker')
         ready=self.run(['dpkg-query','-W','-f=${Status}','openmediavault-omvextrasorg'],check=False)
         if 'install ok installed' not in ready.stdout:
             try:
@@ -290,9 +332,14 @@ class System:
         data,db=self._storage(app,selection)
         secret=write_secret(project/'db-password') if app=='immich' else ''
         compose=render_compose(app,selection,data,db,secret,write_secret(self.state/'installation-id'))
+        if app=='jellyfin':
+            media=self.media_binding()
+            if media:
+                compose['services']['jellyfin']['volumes']=[v for v in compose['services']['jellyfin']['volumes'] if v['target']!='/media']+[bind(media,'/media',True)]
         cfg=project/'compose.yml';cfg.write_text(yaml.safe_dump(compose,sort_keys=False));cfg.chmod(0o600)
         saved=project/'selection.json';saved.write_text(selection.model_dump_json());saved.chmod(0o600)
         self.run(['docker','compose','-f',str(cfg),'config','--quiet'])
+        report('downloading_app')
         self.run(['docker','compose','-f',str(cfg),'pull'],timeout=1800)
         # Recheck after slow downloads, immediately before enabling the stack.
         self.guard_stack(app)
@@ -319,14 +366,21 @@ WantedBy=multi-user.target
 '''.format(units=' '.join(units),app=app,cfg=cfg)
         Path('/etc/systemd/system/nas-app-'+app+'.service').write_text(unit)
         self.run(['systemctl','daemon-reload'])
+        report('starting_app')
         self.run(['systemctl','enable','--now','nas-app-'+app+'.service'],timeout=120)
-        self.wait_app(app)
+        report('checking_app')
+        self.wait_app(app,timeout=900 if app=='immich' else 300)
+
+    def prepare_immich_database(self):
+        from .immich import prepare_database
+        prepare_database(self)
 
     def stack_run(self,app):
         if app not in ('immich','jellyfin'):raise SetupError('operation_invalid')
         project=self.project(app);selection=Selection(**json.loads((project/'selection.json').read_text()))
         self.guard_stack(app)
         self.check_project_ownership(app)
+        if app=='immich':self.prepare_immich_database()
         # Foreground Compose exits if a component dies. systemd reruns this guard before every restart.
         os.execv('/usr/bin/docker',['docker','compose','-f',str(project/'compose.yml'),'up','--no-build','--no-recreate','--abort-on-container-exit'])
 
@@ -349,6 +403,7 @@ WantedBy=multi-user.target
         return {'state':data.get('BackendState','unknown'),'url':url,'ips':data.get('TailscaleIPs',[])}
 
     def install_tailscale(self):
+        report('installing_tailscale')
         if self.tailscale_status()['state']=='not_installed':
             for remote,local in [('trixie.noarmor.gpg','/usr/share/keyrings/tailscale-archive-keyring.gpg'),
                                  ('trixie.tailscale-keyring.list','/etc/apt/sources.list.d/tailscale.list')]:
@@ -365,6 +420,7 @@ WantedBy=multi-user.target
         elif state not in ('Running','NeedsMachineAuth'):raise SetupError('tailscale_existing_config')
 
     def verify(self,selection):
+        report('checking_services')
         links={}
         for app in selection.apps:
             if app=='tailscale':continue
@@ -374,8 +430,3 @@ WantedBy=multi-user.target
             status=self.tailscale_status();waiting=status['state']!='Running'
             links['tailscale']={'ready':not waiting,'ips':status['ips']}
         return {'links':links,'waiting':waiting}
-
-    def finish(self):
-        import threading
-        def disable():self.run(['systemctl','disable','--now','nas-setup-web.service','nas-setup-worker.service'],timeout=30,check=False)
-        threading.Timer(2,disable).start()

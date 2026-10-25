@@ -1,0 +1,10 @@
+Installed OMV8.5.12-1/MD8.1.6-1 RPC schema comparison against adapter pinned source e0c7b63bf55064eaa6a5e476800465d27e9b86a5
+3fa1cf3dbeac08c5c012d2da399fafdee6d679bc189767fcf890eb395b52be6d  /usr/share/openmediavault/datamodels/rpc.config.json
+71dcc4d68ba5abc13875d6f9e2984f12bb284a41c92554b31bdf116f5b5575db  /usr/share/openmediavault/datamodels/rpc.diskmgmt.json
+106f86f96fbe4cf4ad28bc7458470597343e8d6c4945482d98608841d40a3c00  /usr/share/openmediavault/datamodels/rpc.exec.json
+132cfd9aa36ddd40afddf374322ae2ac3cddc14c7d8c6af138fea29c30bcede1  /usr/share/openmediavault/datamodels/rpc.filesystemmgmt.json
+8db7aeae70316297d9102756cdee893c321bd9e77c25e9cbd8d142125aea1afb  /usr/share/openmediavault/datamodels/rpc.mdmgmt.json
+f30556bdee936d547510557447491eff22d75756b18e95032142d66c04757ea2  /usr/share/openmediavault/datamodels/rpc.sharemgmt.json
+419d7c32a8736f2b069688d85ef136040f91ba2f5a9a5a22d4d51adf8842c4ea  /usr/share/openmediavault/datamodels/rpc.smb.json
+68da16c91f304b418e67665db62ed0ddb639664a93a891bbbf8d779685436f4e  /usr/share/openmediavault/datamodels/rpc.usermgmt.json
+All eight exact SHA256 matches: True

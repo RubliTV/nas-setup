@@ -14,3 +14,133 @@ Limit: No Linux VM runtime or connected NAS is available here. Real OMV package 
 GitHub distribution: User requested downloads from GitHub and selected personal account nicolasumaras. Add a release-specific HTTPS download helper with an embedded archive checksum, temporary extraction and argument forwarding. Publish v0.1.0 as a prerelease; real OMV validation remains pending. This supersedes the earlier local-only delivery scope.
 
 RubliTV publication: User connected RubliTV and authorized publishing there. README and release helper now target RubliTV/nas-setup; preserve the earlier personal repository.
+
+
+## v0.2 storage and sharing
+User approved the storage design and explicitly requested multiple users with per-folder permissions. This supersedes the earlier apps-only scope. Ruling: proceed with the approved implementation without another permission checkpoint. Disjoint UI, OMV adapter and disposable VM work was delegated under the parallel-agent skill; root integrated the contracts and performed cross-component testing.
+
+Implemented: bilingual storage/users/folders/apps/review/progress wizard, existing EXT4 and single/RAID1/5/6 selection, ordinary users, rw/ro/none permissions, server-owned session-bound erasure plans, secret-isolated credentials, durable operation journal, exact read-only Jellyfin Media exception, versioned packaging.
+
+Independent review identified four issues: recovery plans rejected their own partially provisioned disks; an existing container could retain writable Media; all-read-only ACL masks differed from the checker; completed RAID health could become stale. All four fixes passed fresh independent re-review and regression tests. Recovery review now requests erasure consent only when destructive operations remain. Live validation remains in progress.
+
+Test-driven evidence: core planner/journal/engine/media tests were observed failing before implementation, then passed. Added review regressions were observed failing before fixes. UI agent verified real demo API flows and inspected desktop/mobile screenshots. Real storage remains gated pending the separate disposable OMV validation record. No physical NAS disks were touched.
+
+Integration ruling: prior user authorization to publish to RubliTV covers pushing this implementation branch and creating a draft PR. Keep the public v0.1 release unchanged; no v0.2 install release until the approved live storage matrix passes. The normal repository is retained for continued VM integration work.
+
+Verification snapshot: 101 Python tests pass on Python3.15; Python3.12 passed94 before the final additional regressions. Expanded Chrome/Playwright flow passes; source archive internal/external SHA256 checks and wheel PHP bridge inclusion verified. VM single-vCPU recovery reached OMV service deployment; all8 installed RPC schemas match audited hashes. These are not full live provisioning results.
+
+Live validation update: single disk, existing-volume reuse, RAID1 and RAID5 passed real OMV provisioning, SMB rw/ro/none, POSIX denial, completed-journal replay, actual reboot and degraded completion refusal. RAID6 exposed OMV's 180-second remote receive timeout during configuration deployment; the daemon completed after the client disconnected. Commit81786a5 limits an extended1740-second receive timeout to config_apply, inside Python's1800-second bound. The uncertain-operation journal behavior is unchanged. Actual PHP regression ran red then green, and independent review found no blocker. Fresh full suites pass117 tests on Python3.12 and3.15; browser suite passes. RAID6 retry, lost-format reboot recovery and packaged bootstrap remain pending; production gate stays disabled.
+
+Storage release gate: all approved disposable OMV matrix cases passed, including single/RAID1/5/6, real rw/ro/none and POSIX denials, exact-resource reboot persistence, degraded/syncing Finish blocking, conflicts, existing reuse, completed-journal replay and lost-format response recovery after an actual reboot with zero repeat mutations. Root inspected the evidence and enabled ADAPTER_VALIDATED for the exact checked package/schema contract. Final packaged HTTPS wizard validation remains before publication; it will start with the MD plugin absent and provision a two-disk mirror.
+
+Final package validation: candidate c2301d9eaf7afa14df87b552f4976413e798bcbe25b4576041092330ea9d728b passed the real HTTPS wizard under restrictive root umask0077, starting without MD installed. It installed exact MD8.1.6-1, created a healthy RAID1 mirror plus sharing users/folder, removed temporary credentials, stopped only installer services at Finish while SMB continued, and reopened with fresh authentication and preserved setup. A prior snapshot clock rollback was corrected without bypassing package signatures. The real restrictive-umask bootstrap bug was fixed in ceaed60 with observed failing/passing filesystem+venv regression and independent review. Fresh suites:118 tests on Python3.12 and3.15; unchanged bilingual browser flow passes. Final release rebuild may update docs only and must match all29 tested runtime hashes. Physical J1800 and full optional-app tests remain outstanding.
+
+Publication ruling: publish the validated immutable v0.2.0 prerelease from the reviewed implementation branch under the existing RubliTV publication authorization. Retain the ready PR for review and leave the earlier v0.1.0 release unchanged.
+
+## v0.2.1 recovery patch, in progress
+
+- User hardware diagnosis: prerequisites succeeded, storage_setup failed with
+  omv_configuration_changed, no operations/checkpoint, config dirty.
+- Correction: MD postinst marks mdadm dirty for older-version upgrades, NOT
+  fresh installs (lt-nl treats an empty version as later). The clean old-release
+  VM progressed into storage; user pending-module origin remains unconfirmed.
+- Ruling: saved job retains initial exact-plan consent across retry/login/restart,
+  as requested; every retry revalidates ownership and targets. No new job can use
+  that consent. Spec amended explicitly; passwords remain transient.
+- Engine red: two regressions failed (plan_missing and missing recovery check).
+  Green: 17 orchestration tests. Browser red: legacy retry redirected to review;
+  green after removing redirect and clearing accepted retry passwords.
+- Narrow mdadm deployment repair and state-preserving updater in implementation;
+  live old-release failure -> upgrade -> resume test prepared.
+
+- Completed: 163 Python tests on 3.12 and 3.15; Chrome bilingual/mobile retry and
+  inline pending approval pass. Independent reviews clean after two scoped fixes.
+- Live old release did not reproduce first-install hypothesis; corrected source
+  interpretation, then used explicit mdadm/fstab dirty-marker injection.
+- Live upgrade recovered that failed job through native OMV application without
+  new disk/ERASE consent; healthy RAID1/users/share, Finish/SMB/reopen passed.
+- Final runtime 63350a5f… updated the completed job without state/config/certificate
+  changes; mdadm-only automatic repair also passed. Evidence archived in tests.
+- Ready for immutable v0.2.1 release; v0.1/v0.2.0 assets remain unchanged.
+
+## v0.2.2 Immich startup and recovery
+
+The supplied initial logs confirmed a startup race: Immich exited on ECONNREFUSED
+while PostgreSQL initdb was syncing; Compose then stopped the incomplete database.
+Added independent dependency startup, final-postgres readiness, healthy dependency
+conditions and additive recovery for the pristine interrupted cluster. Recovery
+preserves HBA backup/files/password and refuses custom databases/roles/relations.
+Independent review found literal-prefix matching, template1 coverage and a
+readiness transition race; all three were fixed. Local Python suites pass 177
+checks on 3.12/3.15; Chrome PT/EN/mobile wizard integration passes. The updater
+accepts 0.2.0/0.2.1/0.2.2 and the candidate successfully updated the disposable
+VM from 0.2.1 with saved jobs/configuration/certificate unchanged. Full image
+startup/recovery validation is recorded in docs/v022-immich-validation.md.
+
+The live Immich migration test exposed pgvecto.rs worker exit on SIGHUP; recovery
+now restarts PostgreSQL before CREATE, preserving safe interrupted retries. The
+HBA backup keeps PostgreSQL ownership and is atomically published before HBA
+replacement. Both issues were found in unpublished candidates, with regressions
+and independent review completed before release.
+
+Completed: recovered and fresh Immich HTTP readiness passed in the disposable
+OMV guest. Final runtime update preserved saved jobs/configuration/certificate;
+real root/UID backup checks passed. Release runtime matches the tested final
+candidate byte-for-byte across 31 runtime files. Sanitized evidence is archived
+under tests/integration/evidence/v022-*. Physical NAS performance is unmeasured.
+
+## v0.2.3 progress and password prompts
+
+Added durable step timing and scoped allowlisted operation reporting. The browser
+smoothly transitions completed-step progress and separately shows activity,
+elapsed time and connection status. It preserves row animations between polls,
+respects reduced motion, and stops animation on stale/failed status updates.
+Resume asks for only uncompleted accounts, reuses verified journaled accounts,
+removes accepted passwords from the DOM, and rejects stale pre-action poll data.
+184 tests pass on Python 3.12/3.15; existing and new Chrome bilingual/mobile suites
+pass. Independent review is clean after offline icon follow-up. No disk setup or
+application image changes; see docs/v023-progress-validation.md for boundaries.
+
+## v0.2.4 retained passwords and visibility controls
+
+Per the user's updated requirement, unfinished installation credentials now
+survive failure, pause and worker restart in a root-private file. Resume reuses
+them automatically; completed storage removes the file. Legacy/missing/invalid
+files require one entry, then retain it for subsequent retries. Show/Hide controls
+cover initial, confirmation and fallback recovery inputs in PT/EN, with revealed
+values cleared after submission. Python and browser regressions cover persistence,
+cleanup, damaged-file fallback and visibility; independent review is clean.
+See docs/v024-password-validation.md for evidence and validation limits.
+
+
+## v0.3.0 permanent manager and guided app store
+
+The installer now remains available on HTTPS 8443 with a separate manager login.
+The bilingual dashboard discovers all Docker containers and offers scoped
+start/stop/restart/log actions. The beginner catalog guides Radarr, Sonarr and
+Prowlarr installation through storage, access, review and deployment. Compose
+import asks for missing values and validates ports, privileges and NAS folders.
+Private saved plans support durable retries, while per-project systemd units
+guard bind mounts and preserve explicit stopped state across boot. Updates
+preserve state and refuse active work in either job database.
+
+Final Python suites pass 284 tests on both 3.12 and 3.15; all three Chrome browser
+suites pass, including mobile/PT/EN, navigation races, retry after reload and
+connection recovery. Independent reviews and regression fixes are recorded in
+docs/v030-manager-validation.md. Live Docker checks caught absent optional
+metadata and normal Compose shutdown-status handling; both have regression
+coverage and were fixed before release.
+
+Live disposable OMV validation passed all three catalog HTTP/UID/folder checks,
+external-container actions, durable retry after an injected pull failure, guarded
+stop/start/restart, and wrong-filesystem-identity refusal. One real reboot
+restored Radarr/Sonarr automatically while explicitly stopped Prowlarr remained
+stopped; starting Prowlarr afterward restored HTTP availability. Existing stopped
+Immich identities and states were preserved. Physical J1800 performance remains
+unmeasured; see the separate live validation record and sanitized evidence.
+
+Published immutable RubliTV v0.3.0 prerelease from
+83d10835a496b4aabea2ae7c6528b58a5a613291. All three public assets match local
+verified files; the archive manifest covers 55 files. Archive SHA-256:
+9bd60e3c43c2f9e7faa267a458f8e58fc99fc07f498306136ec0be98294b8a58.
+PR #1 was updated and remains open; main was not merged. Disposable VM is off.

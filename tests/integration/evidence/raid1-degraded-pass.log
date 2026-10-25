@@ -1,0 +1,2 @@
+mdadm: hot removed /dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA2 from /dev/md0
+VERIFIED DEGRADED MEMBER DETECTION {"state": "degraded", "progress": 0, "tolerance": 1}

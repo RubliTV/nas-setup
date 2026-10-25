@@ -1,0 +1,40 @@
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:32:03.575832+00:00"}
+{"code": "manager_command_failed", "event": "MANAGER_GUARDED_SMOKE_FAILED", "kind": "SetupError", "time": "2026-10-25T03:32:05.301264+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:38:59.542295+00:00"}
+{"event": "optional_docker_metadata_pass", "external_no_healthcheck_logs_read": true, "time": "2026-10-25T03:39:18.950836+00:00", "unlabeled_container_visible": true, "unlabeled_logs_read": true}
+{"error": null, "event": "guarded_job_terminal", "id": "97be3d94cc9844e29a724099b175b6b0", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:39:46.041680+00:00"}
+{"app": "radarr", "docker_restart": "no", "event": "guarded_migration_pass", "http_status": 200, "time": "2026-10-25T03:40:10.472006+00:00", "unit": "nas-manager-radarr.service"}
+{"error": null, "event": "guarded_job_terminal", "id": "72153d9c00054b488c97c1f39cb930ce", "operation": "stop", "status": "succeeded", "time": "2026-10-25T03:40:32.431536+00:00"}
+{"code": "verification_failed", "event": "MANAGER_GUARDED_SMOKE_FAILED", "kind": "AssertionError", "time": "2026-10-25T03:40:32.535725+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:43:30.955991+00:00"}
+{"code": "verification_failed", "event": "MANAGER_GUARDED_SMOKE_FAILED", "kind": "FileExistsError", "location": "manager.py:419", "time": "2026-10-25T03:43:31.915242+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:44:24.348649+00:00"}
+{"change": "SuccessExitStatus=130 143 only", "event": "test_fixture_unit_migrated", "project": "nas-manager-radarr", "time": "2026-10-25T03:44:27.854916+00:00"}
+{"event": "optional_docker_metadata_pass", "external_no_healthcheck_logs_read": true, "time": "2026-10-25T03:44:36.951281+00:00", "unlabeled_container_visible": true, "unlabeled_logs_read": true}
+{"error": null, "event": "guarded_job_terminal", "id": "79fe2eafe34f438e96497a194e45e946", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:44:55.825894+00:00"}
+{"app": "radarr", "docker_restart": "no", "event": "guarded_migration_pass", "http_status": 200, "time": "2026-10-25T03:45:27.186138+00:00", "unit": "nas-manager-radarr.service"}
+{"error": null, "event": "guarded_job_terminal", "id": "70ef84ee35374352ada044731e19a12d", "operation": "stop", "status": "succeeded", "time": "2026-10-25T03:45:46.354159+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "26757dc24caf4c8e89637263f6af290d", "operation": "start", "status": "succeeded", "time": "2026-10-25T03:46:05.687318+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "99beff06b9154f68ab01cc8f7b684b55", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:46:49.009657+00:00"}
+{"app": "radarr", "container_restart_verified": true, "event": "guarded_stop_start_restart_pass", "http_status": 200, "time": "2026-10-25T03:47:11.072058+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "e8e242b48c3c48148ba6fa534668f02f", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:47:47.338223+00:00"}
+{"app": "sonarr", "docker_restart": "no", "event": "guarded_migration_pass", "http_status": 200, "time": "2026-10-25T03:48:22.001819+00:00", "unit": "nas-manager-sonarr.service"}
+{"error": null, "event": "guarded_job_terminal", "id": "067814997505488ea47711a58e44c7eb", "operation": "stop", "status": "succeeded", "time": "2026-10-25T03:48:45.950375+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "b6a3390cff64451ead2da58a65b7cb5d", "operation": "start", "status": "succeeded", "time": "2026-10-25T03:49:09.938615+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "5d003fbd5161401d952ab9fb3ac607d4", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:49:55.593554+00:00"}
+{"app": "sonarr", "container_restart_verified": true, "event": "guarded_stop_start_restart_pass", "http_status": 200, "time": "2026-10-25T03:50:53.096144+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "2dae0d6c4f364a9c8389f063e40512a5", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:51:31.114585+00:00"}
+{"app": "prowlarr", "docker_restart": "no", "event": "guarded_migration_pass", "http_status": 200, "time": "2026-10-25T03:51:53.295278+00:00", "unit": "nas-manager-prowlarr.service"}
+{"error": null, "event": "guarded_job_terminal", "id": "10d39981ea7843fcb47a8e30af012973", "operation": "stop", "status": "succeeded", "time": "2026-10-25T03:52:28.239654+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "3bda76d2779c448882fb986644f8fdab", "operation": "start", "status": "succeeded", "time": "2026-10-25T03:52:48.064972+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "963ff578bbae41fdb475685d8a5616e8", "operation": "restart", "status": "succeeded", "time": "2026-10-25T03:53:32.268231+00:00"}
+{"app": "prowlarr", "container_restart_verified": true, "event": "guarded_stop_start_restart_pass", "http_status": 200, "time": "2026-10-25T03:53:51.828411+00:00"}
+{"error": null, "event": "guarded_job_terminal", "id": "3236672af4eb4b11a1828a0bc2f059a1", "operation": "stop", "status": "succeeded", "time": "2026-10-25T03:54:19.016797+00:00"}
+{"container_state": "exited", "event": "missing_identity_guard_pass", "simulation": "isolated database expected UUID replaced; real NAS stays mounted", "time": "2026-10-25T03:54:25.447205+00:00"}
+{"code": "verification_failed", "event": "MANAGER_GUARDED_SMOKE_FAILED", "kind": "RuntimeError", "location": "manager_smoke.py:32", "time": "2026-10-25T03:54:25.718595+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:55:46.537576+00:00"}
+{"completed_lifecycle_and_identity_proofs_preserved": true, "event": "guarded_restoration_resumed", "time": "2026-10-25T03:55:47.260556+00:00"}
+{"event": "optional_docker_metadata_pass", "external_no_healthcheck_logs_read": true, "time": "2026-10-25T03:55:54.778138+00:00", "unlabeled_container_visible": true, "unlabeled_logs_read": true}
+{"error": null, "event": "guarded_job_terminal", "id": "89ebe54133d04b2d9295df0315ec4ba6", "operation": "start", "status": "succeeded", "time": "2026-10-25T03:56:11.753876+00:00"}
+{"event": "guard_restore_pass", "http_status": 200, "immutable_compose_preserved": true, "time": "2026-10-25T03:56:29.668499+00:00"}
+{"event": "MANAGER_GUARDED_SMOKE_PASS", "time": "2026-10-25T03:56:29.668987+00:00"}

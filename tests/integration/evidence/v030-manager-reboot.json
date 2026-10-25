@@ -1,0 +1,108 @@
+{
+  "disposable_vm_only": true,
+  "physical_nas_tested": false,
+  "real_reboot_tested": true,
+  "storage_detached": false,
+  "before": {
+    "boot_id": "61fc27d6-61e3-42d1-ac59-6de484bdcf0f",
+    "immich": {
+      "7252cca3706316fbd92a68cb07960d67d8913996aaee17232a6e84f2288200d8": "exited",
+      "369a03e702149eaabe2eafa9e148bcdb23579850adecedfcd0b46f4120b4fa41": "exited",
+      "f692f30c02fb979655cec256f93abe20a3897a93dc9f9637e41b3d220b5d6050": "exited"
+    },
+    "events": [
+      {
+        "time": "2026-10-25T03:56:44.820077+00:00",
+        "event": "guards_pass",
+        "hostname": "nas-v02-vm",
+        "serials": [
+          "NASV02DATA1",
+          "NASV02DATA2",
+          "NASV02DATA3",
+          "NASV02DATA4",
+          "NASV02SYSTEM"
+        ]
+      },
+      {
+        "time": "2026-10-25T03:57:02.981666+00:00",
+        "event": "reboot_manager_action_pass",
+        "app": "prowlarr",
+        "action": "stop"
+      },
+      {
+        "time": "2026-10-25T03:57:05.312574+00:00",
+        "event": "reboot_app_ready",
+        "app": "radarr",
+        "http_status": 200,
+        "unit_enabled": true,
+        "unit_active": true
+      },
+      {
+        "time": "2026-10-25T03:57:05.883662+00:00",
+        "event": "reboot_app_ready",
+        "app": "sonarr",
+        "http_status": 200,
+        "unit_enabled": true,
+        "unit_active": true
+      }
+    ]
+  },
+  "events": [
+    {
+      "time": "2026-10-25T03:59:02.648452+00:00",
+      "event": "guards_pass",
+      "hostname": "nas-v02-vm",
+      "serials": [
+        "NASV02DATA1",
+        "NASV02DATA2",
+        "NASV02DATA3",
+        "NASV02DATA4",
+        "NASV02SYSTEM"
+      ]
+    },
+    {
+      "time": "2026-10-25T03:59:10.694027+00:00",
+      "event": "explicit_stop_survived_reboot",
+      "app": "prowlarr",
+      "unit_disabled": true,
+      "container_state": "exited"
+    },
+    {
+      "time": "2026-10-25T04:00:36.880359+00:00",
+      "event": "reboot_app_ready",
+      "app": "radarr",
+      "http_status": 200,
+      "unit_enabled": true,
+      "unit_active": true
+    },
+    {
+      "time": "2026-10-25T04:00:46.992020+00:00",
+      "event": "reboot_app_ready",
+      "app": "sonarr",
+      "http_status": 200,
+      "unit_enabled": true,
+      "unit_active": true
+    },
+    {
+      "time": "2026-10-25T04:01:26.866020+00:00",
+      "event": "reboot_manager_action_pass",
+      "app": "prowlarr",
+      "action": "start"
+    },
+    {
+      "time": "2026-10-25T04:01:57.512235+00:00",
+      "event": "reboot_app_ready",
+      "app": "prowlarr",
+      "http_status": 200,
+      "unit_enabled": true,
+      "unit_active": true
+    },
+    {
+      "time": "2026-10-25T04:02:00.216955+00:00",
+      "event": "MANAGER_REBOOT_SMOKE_PASS",
+      "prior_boot_id": "61fc27d6-61e3-42d1-ac59-6de484bdcf0f",
+      "boot_id": "e146236b-88e9-4398-9f38-f2fbf61dd81b",
+      "prior_immich_preserved": true
+    }
+  ]
+}

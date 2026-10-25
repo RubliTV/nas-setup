@@ -1,0 +1,74 @@
+{
+  "volume": "2355a47c-794c-41a0-be31-8d70ac8f6fc5",
+  "mount_path": "/srv/dev-disk-by-uuid-2355a47c-794c-41a0-be31-8d70ac8f6fc5",
+  "mount_uuid": "e462f2c4-6855-40bd-9da6-e681d329d0df",
+  "owner": "5557e3d910954b10901f3aeb2e6daee7",
+  "users": [
+    {
+      "name": "nasana",
+      "uid": 1000
+    },
+    {
+      "name": "nasbob",
+      "uid": 1001
+    },
+    {
+      "name": "naseve",
+      "uid": 1002
+    }
+  ],
+  "shares": [
+    {
+      "name": "Files",
+      "folder": "files",
+      "relative_path": "nas-files",
+      "path": "/srv/dev-disk-by-uuid-2355a47c-794c-41a0-be31-8d70ac8f6fc5/nas-files",
+      "permissions": {
+        "nasana": "rw",
+        "nasbob": "ro",
+        "naseve": "none"
+      },
+      "comment": "nas-setup-5557e3d910954b10901f3aeb2e6daee7",
+      "uuid": "3063aa69-4e49-4dcd-ae4c-f32626124bb1",
+      "smb_uuid": "9686c0e2-21e4-4e73-b135-27e150f5e4a6"
+    },
+    {
+      "name": "Media",
+      "folder": "media",
+      "relative_path": "nas-media",
+      "path": "/srv/dev-disk-by-uuid-2355a47c-794c-41a0-be31-8d70ac8f6fc5/nas-media",
+      "permissions": {
+        "nasana": "none",
+        "nasbob": "rw",
+        "naseve": "ro"
+      },
+      "comment": "nas-setup-5557e3d910954b10901f3aeb2e6daee7",
+      "uuid": "f2656b29-628a-4551-b7c4-afbe802b5bdf",
+      "smb_uuid": "806e0672-582f-4e18-8404-6bcc27e0f267"
+    }
+  ],
+  "targets": [
+    {
+      "topology": "d423d445879e75884bd58d35f688bd9092385238d28cabff3840dd1bb7a91c97",
+      "id": "/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA1",
+      "device": "/dev/sda",
+      "devicefile": "/dev/sda",
+      "model": "QEMU HARDDISK",
+      "serial": "NASV02DATA1",
+      "size_bytes": 17179869184,
+      "transport": "sata",
+      "eligible": true,
+      "reason": null,
+      "signatures": [],
+      "logical_sector": 512,
+      "physical_sector": 512
+    }
+  ],
+  "md": null,
+  "media_path": "/srv/dev-disk-by-uuid-2355a47c-794c-41a0-be31-8d70ac8f6fc5/nas-media",
+  "raid": {
+    "state": "healthy",
+    "progress": 100,
+    "tolerance": 0
+  }
+}

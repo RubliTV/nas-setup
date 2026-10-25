@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from .models import SetupError
 
-ACTIVE={'running','pending','waiting-for-user','interrupted','paused','failed'}
+ACTIVE={'running','pending','waiting-for-user','interrupted','paused','failed','waiting-for-sync'}
 
 class JobStore:
     def __init__(self, directory):
@@ -28,9 +28,10 @@ class JobStore:
             c.rollback(); raise
         finally: c.close()
 
-    def create(self, selection, steps):
+    def create(self, selection, steps, **metadata):
         job={'id':uuid.uuid4().hex,'selection':selection,'status':'running','pause_requested':False,
              'steps':[{'id':s,'status':'pending'} for s in steps], 'error':None,'links':{}}
+        job.update(metadata)
         with self.connect() as c:
             existing=c.execute('SELECT body FROM jobs ORDER BY created DESC LIMIT 1').fetchone()
             if existing and json.loads(existing[0])['status'] in ACTIVE: raise SetupError('job_active')
@@ -55,7 +56,19 @@ class JobStore:
     def step(self,identity,step,status):
         def mutate(job):
             for s in job['steps']:
-                if s['id']==step:s['status']=status
+                if s['id']==step:
+                    s['status']=status
+                    s.pop('activity',None)
+                    if status=='running':s['started_at']=time.time()
+        return self.edit(identity,mutate)
+
+    def activity(self,identity,step,code):
+        from .progress import ACTIVITIES
+        if code not in ACTIVITIES:raise ValueError('Unknown activity identifier')
+        def mutate(job):
+            if job['status']!='running':return
+            for record in job['steps']:
+                if record['id']==step and record['status']=='running':record['activity']=code
         return self.edit(identity,mutate)
 
     def interrupt_running(self):

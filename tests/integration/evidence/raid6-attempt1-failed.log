@@ -1,0 +1,30 @@
+TARGETS [('NASV02DATA1', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA1'), ('NASV02DATA2', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA2'), ('NASV02DATA3', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA3'), ('NASV02DATA4', '/dev/disk/by-id/ata-QEMU_HARDDISK_NASV02DATA4')]
+MUTATION disk_wipe
+MUTATION disk_wipe
+MUTATION disk_wipe
+MUTATION disk_wipe
+MUTATION md_create
+MUTATION filesystem_create
+MUTATION mount_set
+MUTATION config_apply
+Traceback (most recent call last):
+  File "/root/nas-exercise-raid6.py", line 147, in <module>
+    resources=adapter.provision(selection.model_dump(),plan,journal,passwords)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 567, in provision
+    volume=self._mount_new(filesystem,owner,journal)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 531, in _mount_new
+    journal.perform('mount.apply',self._apply,lambda record: {'applied':True} if self._mounted(filesystem['uuid'])['mount_uuid']==mount['uuid'] else None)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/journal.py", line 56, in perform
+    result=action()
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 208, in _apply
+    self._mutate('config_apply',{'modules':[],'force':False})
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/nas-exercise-raid6.py", line 23, in _mutate
+    result=super()._mutate(op,params)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 664, in _mutate
+    result=self._rpc(operation,params)
+  File "/root/nas-venv/lib/python3.13/site-packages/nas_setup/omv.py", line 120, in _rpc
+    if result.returncode:raise SetupError('omv_rpc_failed')
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+nas_setup.models.SetupError: omv_rpc_failed

@@ -1,0 +1,13 @@
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:32:08.379493+00:00"}
+{"error": "manager_command_failed", "event": "retry_job_terminal", "id": "f03d8377aa9d406e8636d0e69605ca3f", "status": "failed", "time": "2026-10-25T03:32:14.296281+00:00"}
+{"boundary": "docker compose pull", "event": "injected_pull_failure_persisted", "time": "2026-10-25T03:32:14.297660+00:00"}
+{"error": null, "event": "retry_job_terminal", "id": "82b6095624d346a6b2273f74b3416e6b", "status": "succeeded", "time": "2026-10-25T03:32:27.096528+00:00"}
+{"code": "verification_failed", "event": "MANAGER_RETRY_SMOKE_FAILED", "kind": "StopIteration", "time": "2026-10-25T03:32:32.785015+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:39:00.465893+00:00"}
+{"event": "resume_durable_retry_verification", "time": "2026-10-25T03:39:03.956596+00:00"}
+{"actual_container_state": "running", "disposable_vm_only": true, "event": "MANAGER_RETRY_SMOKE_PASS", "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls323", "injected_failure_boundary": "docker compose pull", "new_job_id": true, "original_error": "manager_command_failed", "original_history_preserved": true, "original_status": "failed", "retry_status": "succeeded", "time": "2026-10-25T03:39:16.410762+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:49:54.676536+00:00"}
+{"error": "manager_command_failed", "event": "retry_job_terminal", "id": "2ba7115f357544f1a638544e23414673", "status": "failed", "time": "2026-10-25T03:50:11.870128+00:00"}
+{"boundary": "docker compose pull", "event": "injected_pull_failure_persisted", "time": "2026-10-25T03:50:11.870663+00:00"}
+{"error": null, "event": "retry_job_terminal", "id": "7b0ac9593f2b41eeb13de87b798bf424", "status": "succeeded", "time": "2026-10-25T03:50:37.938368+00:00"}
+{"actual_container_state": "running", "disposable_vm_only": true, "event": "MANAGER_RETRY_SMOKE_PASS", "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls323", "injected_failure_boundary": "docker compose pull", "new_job_id": true, "original_error": "manager_command_failed", "original_history_preserved": true, "original_status": "failed", "retry_status": "succeeded", "time": "2026-10-25T03:50:51.389545+00:00"}

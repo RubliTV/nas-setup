@@ -1,0 +1,9 @@
+PASS packaged 0.2.2 -> 0.2.2 update; saved job, certificate and configuration unchanged
+PASS pinned database/cache images downloaded
+PASS reproduced missing Immich DB and refused host authentication
+PASS unexpected roles, schemas and template tables blocked without HBA changes
+PASS wrong password refused; recovery does not enable host trust
+PASS recovery, password-authenticated TCP and idempotent retry; original HBA preserved
+PASS recovered Immich HTTP /api/server/ping
+PASS fresh initialization through production stack_run and Immich HTTP
+IMMICH RECOVERY AND FRESH START PASS

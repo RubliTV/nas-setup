@@ -1,0 +1,7 @@
+Oct 24 21:34:28 nas-v02-vm omv-engined[8185]: Failed to write to socket: Broken pipe
+Oct 24 21:34:28 nas-v02-vm omv-engined[8185]: 
+ExecMainStartTimestamp=Sat 2026-10-24 21:28:10 UTC
+ExecMainExitTimestamp=Sat 2026-10-24 21:33:17 UTC
+[]
+Durable journal dispatch UTC: [('mount.apply', 'dispatched', '2026-10-24 21:30:16')]
+Installed OMV globals.inc: OMV_ENGINED_SO_RCVTIMEO = 180 seconds

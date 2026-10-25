@@ -1,0 +1,12 @@
+{
+  "tested_archive_sha256": "c2301d9eaf7afa14df87b552f4976413e798bcbe25b4576041092330ea9d728b",
+  "release_archive_sha256": "8a7e4fb361ce5b800f2354f73c7b6a35ce36880975e9f44a734ad7f78ca73cf2",
+  "runtime_files_verified_identical": 29,
+  "non_runtime_changes_since_test": [
+    "SHA256SUMS",
+    "docs/superpowers/plans/2026-10-24-v02-implementation.md",
+    "docs/superpowers/specs/2026-10-24-storage-and-sharing-design.md",
+    "docs/testing.md",
+    "docs/v02-vm-validation.md"
+  ]
+}

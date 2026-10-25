@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import ipaddress
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -16,9 +17,17 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def run(*args):return subprocess.run(args,check=True,text=True,stdout=subprocess.PIPE).stdout
 
+def ensure_manager_account(parser):
+    # Do not use run(): interactive prompts must retain the controlling terminal.
+    try:subprocess.run(['/opt/nas-setup/venv/bin/nas-setup','manager-account','--if-missing'],check=True)
+    except subprocess.CalledProcessError:
+        parser.error('Account setup incomplete. Run sudo nas-setup manager-account, then sudo nas-setup reopen. / Criação da conta incompleta.')
+
+
 def main():
     p=argparse.ArgumentParser(description='Instalar NAS Setup / Install NAS Setup')
     p.add_argument('--address');p.add_argument('--port',type=int,default=8443);p.add_argument('--check',action='store_true')
+    p.add_argument('--update',action='store_true',help='Update installed NAS Setup while preserving jobs, configuration and certificates')
     args=p.parse_args()
     if platform.system()!='Linux':p.error('Requires OMV 8 / Debian 13 / amd64. Requer OMV 8 / Debian 13 / amd64.')
     release=Path('/etc/os-release').read_text()
@@ -28,7 +37,23 @@ def main():
     if args.check:
         print('Compatible / Compatível: OMV 8 / Debian 13 / amd64');return
     if os.geteuid()!=0:p.error('Use sudo / Execute com sudo')
-    if Path('/opt/nas-setup').exists():p.error('Already installed. Use: sudo nas-setup reopen / Já instalado.')
+    manifest=ROOT/'SHA256SUMS'
+    if not manifest.exists():p.error('Use a packaged release with SHA256SUMS. Run scripts/build_release.py first.')
+    for line in manifest.read_text().splitlines():
+        digest,name=line.split('  ',1);target=ROOT/name
+        if not target.resolve().is_relative_to(ROOT) or target.is_symlink():p.error('Invalid release path')
+        if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:p.error('Release checksum failed / Verificação falhou')
+    if args.update:
+        spec=importlib.util.spec_from_file_location('nas_setup_updater',Path(__file__).resolve().with_name('update.py'))
+        updater=importlib.util.module_from_spec(spec);spec.loader.exec_module(updater)
+        try:output=updater.update_release(ROOT,destination=Path('/opt/nas-setup'),state=Path('/var/lib/nas-setup'),conf=Path('/etc/nas-setup'),run=run)
+        except updater.UpdateError as exc:p.error(str(exc))
+        ensure_manager_account(p)
+        output=run('/opt/nas-setup/venv/bin/nas-setup','reopen')
+        print('Updated NAS Setup; existing jobs and NAS configuration were preserved. / NAS Setup atualizado.')
+        print(output)
+        return
+    if Path('/opt/nas-setup').exists():p.error('Already installed. Use --update to upgrade, or sudo nas-setup reopen / Já instalado.')
     if not 1024<=args.port<=65535:p.error('Port must be between 1024 and 65535')
     addresses={a['local'] for i in json.loads(run('ip','-j','address','show')) for a in i.get('addr_info',[]) if a['family']=='inet'}
     address=args.address
@@ -41,12 +66,9 @@ def main():
     with socket.socket() as probe:
         try:probe.bind((address,args.port))
         except OSError:p.error('Port occupied / Porta ocupada')
-    manifest=ROOT/'SHA256SUMS'
-    if not manifest.exists():p.error('Use a packaged release with SHA256SUMS. Run scripts/build_release.py first.')
-    for line in manifest.read_text().splitlines():
-        digest,name=line.split('  ',1);target=ROOT/name
-        if not target.resolve().is_relative_to(ROOT) or target.is_symlink():p.error('Invalid release path')
-        if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:p.error('Release checksum failed / Verificação falhou')
+    # The web service must traverse the runtime even when root uses umask 0077.
+    # Private state, TLS keys and service processes retain explicit restrictive modes.
+    os.umask(0o022)
     print('Installing dependencies / Instalando dependências…',flush=True)
     run('apt-get','update')
     run('apt-get','-o','DPkg::Lock::Timeout=60','--no-remove','--yes','install','python3-venv','openssl','ca-certificates')
@@ -112,6 +134,7 @@ WantedBy=multi-user.target
     for name,content in [('web',web),('worker',worker)]:Path('/etc/systemd/system/nas-setup-'+name+'.service').write_text(content)
     Path('/usr/local/bin/nas-setup').symlink_to('/opt/nas-setup/venv/bin/nas-setup')
     run('systemctl','daemon-reload')
+    ensure_manager_account(p)
     output=run('/opt/nas-setup/venv/bin/nas-setup','reopen')
     print(output)
     print('HTTPS certificate fingerprint / Impressão digital do certificado HTTPS:')

@@ -1,0 +1,13 @@
+PASS packaged bootstrap, systemd services, private state, verified HTTPS fingerprint
+INJECTED real pending mdadm/fstab at the old prerequisite/storage boundary; origin is test-controlled
+PASS real HTTPS login, root-worker inventory/plan, CSRF and erasure boundaries
+PASS reproduced injected v0.2.0 pending-config failure, empty operation journal and absent checkpoint
+PASS update retains failed job and HTTPS/config; fresh login successful
+PASS retry accepted original disk plan plus explicit pending-config approval, no new ERASE/plan request
+LIVE WIZARD STEP storage_prerequisites
+LIVE WIZARD STEP storage_setup
+LIVE WIZARD STEP verify
+LIVE WIZARD STEP succeeded
+PASS packaged HTTPS wizard installs missing MD plugin, completes healthy RAID1/users/share, no password in job history
+PASS Finish stops only installer; SMB continues; reopen authenticates and preserves setup
+UPGRADE AND RECOVERY SMOKE PASS

@@ -17,6 +17,6 @@ main() (
         --connect-timeout 15 --max-time 300 '@ARCHIVE_URL@' -o release.tar.gz
     printf '%s  release.tar.gz\n' '@ARCHIVE_SHA256@' | sha256sum --check -
     tar -xzf release.tar.gz
-    bash nas-setup-0.1.0/scripts/bootstrap.sh "$@"
+    bash @ARCHIVE_DIR@/scripts/bootstrap.sh "$@"
 )
 main "$@"

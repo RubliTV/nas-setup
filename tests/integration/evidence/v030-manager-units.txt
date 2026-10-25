@@ -1,0 +1,59 @@
+# /etc/systemd/system/nas-manager-radarr.service
+[Unit]
+Description=NAS Manager guarded application
+Requires=docker.service
+BindsTo=srv-dev\x2ddisk\x2dby\x2duuid\x2db01dced5\x2dd4ef\x2d4ad0\x2da245\x2dc67d83fa99a5.mount
+After=docker.service network-online.target srv-dev\x2ddisk\x2dby\x2duuid\x2db01dced5\x2dd4ef\x2d4ad0\x2da245\x2dc67d83fa99a5.mount
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+ExecStart=/opt/nas-setup/venv/bin/python -m nas_setup.manager --stack-run "/root/nas-v030-manager-test" nas-manager-radarr
+ExecStop=/usr/bin/docker compose --project-name nas-manager-radarr -f "/root/nas-v030-manager-test/manager-projects/nas-manager-radarr/guarded.yml" stop
+Restart=always
+RestartSec=15
+SuccessExitStatus=130 143
+TimeoutStopSec=120
+StandardOutput=null
+StandardError=null
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/nas-manager-sonarr.service
+[Unit]
+Description=NAS Manager guarded application
+Requires=docker.service
+BindsTo=srv-dev\x2ddisk\x2dby\x2duuid\x2db01dced5\x2dd4ef\x2d4ad0\x2da245\x2dc67d83fa99a5.mount
+After=docker.service network-online.target srv-dev\x2ddisk\x2dby\x2duuid\x2db01dced5\x2dd4ef\x2d4ad0\x2da245\x2dc67d83fa99a5.mount
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+ExecStart=/opt/nas-setup/venv/bin/python -m nas_setup.manager --stack-run "/root/nas-v030-manager-test" nas-manager-sonarr
+ExecStop=/usr/bin/docker compose --project-name nas-manager-sonarr -f "/root/nas-v030-manager-test/manager-projects/nas-manager-sonarr/guarded.yml" stop
+Restart=always
+RestartSec=15
+SuccessExitStatus=130 143
+TimeoutStopSec=120
+StandardOutput=null
+StandardError=null
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/nas-manager-prowlarr.service
+[Unit]
+Description=NAS Manager guarded application
+Requires=docker.service
+BindsTo=srv-dev\x2ddisk\x2dby\x2duuid\x2db01dced5\x2dd4ef\x2d4ad0\x2da245\x2dc67d83fa99a5.mount
+After=docker.service network-online.target srv-dev\x2ddisk\x2dby\x2duuid\x2db01dced5\x2dd4ef\x2d4ad0\x2da245\x2dc67d83fa99a5.mount
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+ExecStart=/opt/nas-setup/venv/bin/python -m nas_setup.manager --stack-run "/root/nas-v030-manager-test" nas-manager-prowlarr
+ExecStop=/usr/bin/docker compose --project-name nas-manager-prowlarr -f "/root/nas-v030-manager-test/manager-projects/nas-manager-prowlarr/guarded.yml" stop
+Restart=always
+RestartSec=15
+SuccessExitStatus=130 143
+TimeoutStopSec=120
+StandardOutput=null
+StandardError=null
+[Install]
+WantedBy=multi-user.target

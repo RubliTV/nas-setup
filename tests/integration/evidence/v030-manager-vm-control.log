@@ -1,0 +1,5 @@
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:57:27.912632+00:00"}
+{"boot_id": "61fc27d6-61e3-42d1-ac59-6de484bdcf0f", "endpoint": "127.0.0.1:22282", "event": "VM_REBOOT_REQUESTED", "time": "2026-10-25T03:57:28.059404+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T04:02:54.524130+00:00"}
+{"endpoint": "127.0.0.1:22282", "event": "VM_POWEROFF_REQUESTED", "evidence_collected": true, "time": "2026-10-25T04:02:54.527318+00:00"}
+{"endpoint": "127.0.0.1:22282", "event": "VM_POWEROFF_CONFIRMED", "qemu_pidfile_removed": true, "qemu_process_exited": true, "ssh_port_closed": true, "time": "2026-10-25T04:03:25.523171+00:00"}

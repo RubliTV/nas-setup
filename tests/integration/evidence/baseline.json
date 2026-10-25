@@ -1,0 +1,109 @@
+{
+  "kind": "read_only_environment_probe",
+  "provisioning_certified": false,
+  "hostname": "nas-v02-vm",
+  "machine": "x86_64",
+  "debian": "\"13\"",
+  "packages": [
+    "openmediavault\t8.5.12-1",
+    "openmediavault-md\t8.1.6-1"
+  ],
+  "lsblk": {
+    "blockdevices": [
+      {
+        "name": "/dev/sda",
+        "type": "disk",
+        "size": 17179869184,
+        "serial": "NASV02DATA1",
+        "tran": "sata",
+        "mountpoints": [],
+        "fstype": null,
+        "uuid": null
+      },
+      {
+        "name": "/dev/sdb",
+        "type": "disk",
+        "size": 17179869184,
+        "serial": "NASV02DATA2",
+        "tran": "sata",
+        "mountpoints": [],
+        "fstype": null,
+        "uuid": null
+      },
+      {
+        "name": "/dev/sdc",
+        "type": "disk",
+        "size": 17179869184,
+        "serial": "NASV02DATA3",
+        "tran": "sata",
+        "mountpoints": [],
+        "fstype": null,
+        "uuid": null
+      },
+      {
+        "name": "/dev/sdd",
+        "type": "disk",
+        "size": 17179869184,
+        "serial": "NASV02DATA4",
+        "tran": "sata",
+        "mountpoints": [],
+        "fstype": null,
+        "uuid": null
+      },
+      {
+        "name": "/dev/vda",
+        "type": "disk",
+        "size": 17179869184,
+        "serial": "NASV02SYSTEM",
+        "tran": "virtio",
+        "mountpoints": [],
+        "fstype": null,
+        "uuid": null,
+        "children": [
+          {
+            "name": "/dev/vda1",
+            "type": "part",
+            "size": 17045634560,
+            "serial": null,
+            "tran": "virtio",
+            "mountpoints": [
+              "/"
+            ],
+            "fstype": "ext4",
+            "uuid": "32598875-7ce6-44c3-8da6-bbd25bcd58cf"
+          },
+          {
+            "name": "/dev/vda14",
+            "type": "part",
+            "size": 3145728,
+            "serial": null,
+            "tran": "virtio",
+            "mountpoints": [],
+            "fstype": null,
+            "uuid": null
+          },
+          {
+            "name": "/dev/vda15",
+            "type": "part",
+            "size": 130023424,
+            "serial": null,
+            "tran": "virtio",
+            "mountpoints": [
+              "/boot/efi"
+            ],
+            "fstype": "vfat",
+            "uuid": "60BE-FDC7"
+          }
+        ]
+      }
+    ]
+  },
+  "rpc_source_sha256": {
+    "/usr/share/openmediavault/engined/rpc/diskmgmt.inc": "1f343c73a75526bc75f2c7c4269c386396085fb61e6f84925bbbac4434be5cc4",
+    "/usr/share/openmediavault/engined/rpc/filesystemmgmt.inc": "2cc965a4294577630d85200884c2c00f4ea5f026ab740b64b24a74b7a789b7b2",
+    "/usr/share/openmediavault/engined/rpc/mdmgmt.inc": "7a8979e51276f9b7031db8b4e6d7ec6f6e13a6e0ee4746184f9ae4d978b316cf",
+    "/usr/share/openmediavault/engined/rpc/sharemgmt.inc": "e2a0cd9eb383685ac3a738d834b252ca8ffc5e74a501c917b7b1b80d28e185f2",
+    "/usr/share/openmediavault/engined/rpc/usermgmt.inc": "df0324adaff6ef55451cf5c1a8ac700d6160b486cae51166bd318009ac097d2d",
+    "/usr/share/openmediavault/engined/rpc/smb.inc": "0c9a64915e5af2bfaea0ed93a990af0e269e3c2783cedbe55ab3ba359aa85f94"
+  }
+}
