@@ -14,7 +14,7 @@ Use a disposable **OMV 8 / Debian 13 / amd64** VM, with separate system and data
 - Repeat an interrupted installation and verify secrets and uploaded media are retained.
 - Reboot with the data disk present, then absent; verify no app starts against an OS-disk fallback directory.
 - Check a changed filesystem UUID, unavailable database disk, full volume, occupied port, package-manager lock, and existing unmanaged stack.
-- Confirm Finish disables only the installer; `sudo nas-setup reopen` restores it.
+- For v0.3, confirm Finish opens the permanent manager and both services remain available. Check persistent login and local account recovery.
 - Inspect file permissions, service ownership, API origin/CSRF behavior and logs for secrets.
 
 Live storage validation is tracked separately in [v02-vm-validation.md](v02-vm-validation.md). The packaged installer also passed the real HTTPS wizard on a fresh disposable OMV VM: installing the initially absent MD plugin, creating RAID 1/users/a share, protecting credentials, stopping only the installer at Finish, and reopening with preserved state. Tailscale enrollment, the full media application combination, and physical J1800 validation remain separate requirements. A green local suite is not a claim of hardware or deployment readiness.
@@ -51,3 +51,7 @@ this harness against a physical NAS.
 
 The live result and the corrected pending-state hypothesis are documented in
 [v0.2.1 validation](v021-vm-validation.md).
+
+## v0.3 manager
+
+The current manager validation record is [v030-manager-validation.md](v030-manager-validation.md). Run `node tests/browser-manager.cjs` for the guided catalog, Compose questions, login, navigation recovery and mobile checks. Older validation results above describe the version tested at that time.

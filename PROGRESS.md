@@ -111,3 +111,30 @@ cover initial, confirmation and fallback recovery inputs in PT/EN, with revealed
 values cleared after submission. Python and browser regressions cover persistence,
 cleanup, damaged-file fallback and visibility; independent review is clean.
 See docs/v024-password-validation.md for evidence and validation limits.
+
+
+## v0.3.0 permanent manager and guided app store
+
+The installer now remains available on HTTPS 8443 with a separate manager login.
+The bilingual dashboard discovers all Docker containers and offers scoped
+start/stop/restart/log actions. The beginner catalog guides Radarr, Sonarr and
+Prowlarr installation through storage, access, review and deployment. Compose
+import asks for missing values and validates ports, privileges and NAS folders.
+Private saved plans support durable retries, while per-project systemd units
+guard bind mounts and preserve explicit stopped state across boot. Updates
+preserve state and refuse active work in either job database.
+
+Final Python suites pass 284 tests on both 3.12 and 3.15; all three Chrome browser
+suites pass, including mobile/PT/EN, navigation races, retry after reload and
+connection recovery. Independent reviews and regression fixes are recorded in
+docs/v030-manager-validation.md. Live Docker checks caught absent optional
+metadata and normal Compose shutdown-status handling; both have regression
+coverage and were fixed before release.
+
+Live disposable OMV validation passed all three catalog HTTP/UID/folder checks,
+external-container actions, durable retry after an injected pull failure, guarded
+stop/start/restart, and wrong-filesystem-identity refusal. One real reboot
+restored Radarr/Sonarr automatically while explicitly stopped Prowlarr remained
+stopped; starting Prowlarr afterward restored HTTP availability. Existing stopped
+Immich identities and states were preserved. Physical J1800 performance remains
+unmeasured; see the separate live validation record and sanitized evidence.
