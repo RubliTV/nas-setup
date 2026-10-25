@@ -352,6 +352,7 @@ def test_bound_deployment_uses_mount_supervision_and_no_docker_autostart(tmp_pat
     assert 'BindsTo=srv-data.mount' in unit and 'After=docker.service network-online.target srv-data.mount' in unit
     assert '--stack-run' in unit and str(m.directory) in unit
     assert 'StandardOutput=null' in unit and 'StandardError=null' in unit
+    assert 'SuccessExitStatus=130 143' in unit
     assert state['running']
     assert any(c[:2]==['systemctl','enable'] for c in commands)
     assert wait(m,call(m,'action',{'id':'a'*64,'action':'stop'}))['status']=='succeeded'
