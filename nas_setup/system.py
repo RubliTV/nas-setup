@@ -53,6 +53,7 @@ def render_compose(app,selection,data,db,secret,owner=None):
         config=yaml.safe_load((DATA/'immich.yml').read_text())
         services=config['services'];server=services['immich-server']
         server['image']='ghcr.io/immich-app/immich-server:'+MANIFEST['immich']
+        server['depends_on']={name:{'condition':'service_healthy'} for name in ('database','redis')}
         server['volumes']=[bind(data/'library','/data'),bind('/etc/localtime','/etc/localtime',True)]
         env={'DB_PASSWORD':secret,'DB_USERNAME':'postgres','DB_DATABASE_NAME':'immich','TZ':selection.timezone,
              'IMMICH_MACHINE_LEARNING_ENABLED':'true' if selection.machine_learning else 'false'}
@@ -363,13 +364,18 @@ WantedBy=multi-user.target
         Path('/etc/systemd/system/nas-app-'+app+'.service').write_text(unit)
         self.run(['systemctl','daemon-reload'])
         self.run(['systemctl','enable','--now','nas-app-'+app+'.service'],timeout=120)
-        self.wait_app(app)
+        self.wait_app(app,timeout=900 if app=='immich' else 300)
+
+    def prepare_immich_database(self):
+        from .immich import prepare_database
+        prepare_database(self)
 
     def stack_run(self,app):
         if app not in ('immich','jellyfin'):raise SetupError('operation_invalid')
         project=self.project(app);selection=Selection(**json.loads((project/'selection.json').read_text()))
         self.guard_stack(app)
         self.check_project_ownership(app)
+        if app=='immich':self.prepare_immich_database()
         # Foreground Compose exits if a component dies. systemd reruns this guard before every restart.
         os.execv('/usr/bin/docker',['docker','compose','-f',str(project/'compose.yml'),'up','--no-build','--no-recreate','--abort-on-container-exit'])
 

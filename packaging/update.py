@@ -80,8 +80,8 @@ def update_release(source, *, destination=Path('/opt/nas-setup'), state=Path('/v
     if not destination.is_dir():
         raise UpdateError('NAS Setup is not installed. Run the installer without --update.')
     installed_version = version(destination / 'source')
-    if installed_version not in {'0.2.0', '0.2.1'} or version(source) != '0.2.1':
-        raise UpdateError('Unsupported update version: only 0.2.0/0.2.1 to 0.2.1 is supported.')
+    if installed_version not in {'0.2.0', '0.2.1', '0.2.2'} or version(source) != '0.2.2':
+        raise UpdateError('Unsupported update version: only 0.2.0/0.2.1/0.2.2 to 0.2.2 is supported.')
     with job_database(state):
         pass
     # Initial eligibility checks above precede even creation of the update lock.
@@ -116,7 +116,7 @@ def _replace_runtime(source, destination, state, installed_version, run, probe):
     try:
         # The versioned directory is permanent: pip console-script shebangs
         # continue pointing at this exact venv after the stable symlink switches.
-        staged = Path(tempfile.mkdtemp(prefix='nas-setup-runtime-0.2.1-', dir=destination.parent))
+        staged = Path(tempfile.mkdtemp(prefix='nas-setup-runtime-0.2.2-', dir=destination.parent))
         staged.chmod(0o755)
         shutil.copytree(source, staged / 'source')
         for path in (staged / 'source').rglob('*'):
@@ -125,7 +125,7 @@ def _replace_runtime(source, destination, state, installed_version, run, probe):
         python = str(staged / 'venv/bin/python')
         run(python, '-m', 'pip', 'install', '-r', str(staged / 'source/requirements.lock'))
         run(python, '-m', 'pip', 'install', '--no-deps', str(staged / 'source'))
-        run(python, '-c', 'from importlib.metadata import version; import nas_setup.cli, nas_setup.worker; assert version("nas-setup") == "0.2.1"')
+        run(python, '-c', 'from importlib.metadata import version; import nas_setup.cli, nas_setup.worker; assert version("nas-setup") == "0.2.2"')
         # Reject jobs that began during dependency installation before downtime.
         with job_database(state):
             pass

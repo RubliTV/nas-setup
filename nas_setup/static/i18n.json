@@ -277,7 +277,9 @@
     "module_monit": "Monitoramento dos serviços",
     "module_quota": "Cotas de armazenamento",
     "module_initramfs": "Inicialização do sistema",
-    "module_ssh": "Acesso SSH"
+    "module_ssh": "Acesso SSH",
+    "error_immich_database_failed": "O banco do Immich não ficou pronto. A tentativa foi interrompida para preservar os dados. Consulte os registros do serviço nas-app-immich.",
+    "error_immich_database_recovery_required": "O banco do Immich precisa de recuperação: foram encontrados dados ou configurações existentes. Nada foi apagado."
   },
   "en": {
     "sidebarCaption": "SET UP YOUR NAS",
@@ -557,6 +559,8 @@
     "module_monit": "Service monitoring",
     "module_quota": "Storage quotas",
     "module_initramfs": "System startup",
-    "module_ssh": "SSH access"
+    "module_ssh": "SSH access",
+    "error_immich_database_failed": "The Immich database did not become ready. The attempt stopped to preserve data. Check the nas-app-immich service logs.",
+    "error_immich_database_recovery_required": "The Immich database needs recovery: existing data or configuration was found. Nothing was deleted."
   }
 }

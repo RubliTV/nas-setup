@@ -62,3 +62,29 @@ Publication ruling: publish the validated immutable v0.2.0 prerelease from the r
 - Final runtime 63350a5f… updated the completed job without state/config/certificate
   changes; mdadm-only automatic repair also passed. Evidence archived in tests.
 - Ready for immutable v0.2.1 release; v0.1/v0.2.0 assets remain unchanged.
+
+## v0.2.2 Immich startup and recovery
+
+The supplied initial logs confirmed a startup race: Immich exited on ECONNREFUSED
+while PostgreSQL initdb was syncing; Compose then stopped the incomplete database.
+Added independent dependency startup, final-postgres readiness, healthy dependency
+conditions and additive recovery for the pristine interrupted cluster. Recovery
+preserves HBA backup/files/password and refuses custom databases/roles/relations.
+Independent review found literal-prefix matching, template1 coverage and a
+readiness transition race; all three were fixed. Local Python suites pass 177
+checks on 3.12/3.15; Chrome PT/EN/mobile wizard integration passes. The updater
+accepts 0.2.0/0.2.1/0.2.2 and the candidate successfully updated the disposable
+VM from 0.2.1 with saved jobs/configuration/certificate unchanged. Full image
+startup/recovery validation is recorded in docs/v022-immich-validation.md.
+
+The live Immich migration test exposed pgvecto.rs worker exit on SIGHUP; recovery
+now restarts PostgreSQL before CREATE, preserving safe interrupted retries. The
+HBA backup keeps PostgreSQL ownership and is atomically published before HBA
+replacement. Both issues were found in unpublished candidates, with regressions
+and independent review completed before release.
+
+Completed: recovered and fresh Immich HTTP readiness passed in the disposable
+OMV guest. Final runtime update preserved saved jobs/configuration/certificate;
+real root/UID backup checks passed. Release runtime matches the tested final
+candidate byte-for-byte across 31 runtime files. Sanitized evidence is archived
+under tests/integration/evidence/v022-*. Physical NAS performance is unmeasured.

@@ -100,3 +100,15 @@ the pairing code is captured separately in the guest's root-private
 `/root/nas-packaged-smoke/bootstrap-private.log`; never commit or publish that log.
 The fixed extraction directory must not exist at the start. Restore the clean
 snapshot for another complete attempt after preserving required evidence.
+
+`upgrade_immich_patch.py ARCHIVE SHA256 [--skip-app-test]` validates the packaged
+v0.2.2 update against saved jobs and configuration in the identity-marked guest.
+`immich_recovery.py` requires an unused Immich project and creates the interrupted
+initdb fixture using the pinned PostgreSQL image. It exercises refusal of custom
+cluster contents, authenticated recovery, repeated startup, and actual Immich
+HTTP readiness for recovered and fresh database directories. It preserves the
+recovered directory when testing fresh initialization. Machine learning is disabled.
+`immich_backup_ownership.py` checks the real root/filesystem operations with a
+PostgreSQL-owned HBA file and a simulated SQL boundary. These helpers must never
+run on the user's NAS. Keep raw updater and Compose logs private; only commit the
+sanitized PASS output after checking it.

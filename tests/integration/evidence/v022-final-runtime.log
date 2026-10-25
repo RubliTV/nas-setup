@@ -1,0 +1,2 @@
+PASS packaged 0.2.2 -> 0.2.2 update; saved job, certificate and configuration unchanged
+PASS recovery backup preserves PostgreSQL ownership and private mode
