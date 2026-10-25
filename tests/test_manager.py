@@ -93,7 +93,7 @@ class Host:
         if args[:2]==['docker','info']:out='29.0'
         elif args[:2]==['docker','ps']:out=self.info['id']
         elif args[:2]==['docker','stats']:out=json.dumps({'ID':'a'*12,'CPUPerc':'2.0%','MemUsage':'32 MiB / 1 GiB'})
-        elif args[:2]==['docker','inspect']:out=json.dumps({'env':['PASSWORD=super-private'],'cmd':None,'entrypoint':None,'healthcheck':None}) if '.Config.Env' in args[3] else json.dumps(self.info)
+        elif args[:2]==['docker','inspect']:out=json.dumps({'env':['PASSWORD=super-private'],'cmd':None,'entrypoint':None,'healthcheck':None}) if '"env"' in args[3] else json.dumps(self.info)
         elif args[:2]==['docker','logs']:out='ready\nsuper-private\npassword generated: surprise\n'
         elif args[:2] in (['docker','stop'],['systemctl','stop']):self.info['state']='exited';out=''
         else:raise AssertionError(args)
@@ -185,7 +185,7 @@ def test_demo_external_container_can_stop_and_restart_but_not_update(tmp_path):
 def test_logs_redact_before_truncating_and_cover_command_secrets(tmp_path):
     m=host_manager(tmp_path);original=m.system.run
     def command(args,timeout=60,check=True):
-        if args[:2]==['docker','inspect'] and '.Config.Env' in args[3]:
+        if args[:2]==['docker','inspect'] and '"env"' in args[3]:
             if args[3]=='{{json .Config.Env}}':out=json.dumps(['PASSWORD=super-private'])
             else:out=json.dumps({'env':['PASSWORD=super-private'],'cmd':['sh','-c','echo command-private'],'entrypoint':['app','--secret=entry-private'],'healthcheck':{'Test':['CMD','check','--token=health-private']}})
             return SimpleNamespace(stdout=out,stderr='',returncode=0)
@@ -233,7 +233,7 @@ def test_real_pull_failure_can_retry_saved_configuration(tmp_path):
 def test_failed_private_inspection_never_returns_logs(tmp_path):
     m=host_manager(tmp_path);original=m.system.run
     def command(args,timeout=60,check=True):
-        if args[:2]==['docker','inspect'] and '.Config.Env' in args[3]:return SimpleNamespace(stdout='',stderr='secret',returncode=1)
+        if args[:2]==['docker','inspect'] and '"env"' in args[3]:return SimpleNamespace(stdout='',stderr='secret',returncode=1)
         return original(args,timeout,check)
     m.system.run=command
     with pytest.raises(SetupError):call(m,'logs',{'id':'a'*64})
@@ -432,3 +432,30 @@ def test_guarded_restart_stops_containers_even_during_first_unit_adoption(tmp_pa
     stops=[i for i,c in enumerate(commands) if c[:2]==['docker','compose'] and c[-1]=='stop']
     restarts=[i for i,c in enumerate(commands) if c[:2]==['systemctl','restart']]
     assert stops and restarts and stops[0]<restarts[0]
+
+
+def test_docker_strict_optional_health_lookup_does_not_hide_container(tmp_path):
+    m=host_manager(tmp_path);original=m.system.run
+    def docker29(args,timeout=60,check=True):
+        if args[:2]==['docker','inspect'] and '.State.Health' in args[3]:
+            # Recorded Docker 29.9.2 response for a container without a
+            # healthcheck. The real CLI uses Go's missingkey=error behavior.
+            return SimpleNamespace(stdout='',stderr='template parsing error: map has no entry for key "Health"',returncode=1)
+        return original(args,timeout,check)
+    m.system.run=docker29
+    rows=call(m,'overview')['containers']
+    assert len(rows)==1 and rows[0]['name']=='external'
+    assert wait(m,call(m,'action',{'id':rows[0]['id'],'action':'stop'}))['status']=='succeeded'
+
+
+def test_unlabelled_container_and_optional_private_config_fields_are_supported(tmp_path):
+    m=host_manager(tmp_path);original=m.system.run
+    m.system.info.update(project=None,service=None,owner=None)
+    def strict_optional(args,timeout=60,check=True):
+        if args[:2]==['docker','inspect'] and any(field in args[3] for field in ('.Config.Labels','.Config.Healthcheck','.Config.Env','.Config.Cmd','.Config.Entrypoint')):
+            return SimpleNamespace(stdout='',stderr='template parsing error: map has no entry for optional key',returncode=1)
+        return original(args,timeout,check)
+    m.system.run=strict_optional
+    rows=call(m,'overview')['containers']
+    assert len(rows)==1 and not rows[0]['managed']
+    assert 'ready' in call(m,'logs',{'id':rows[0]['id']})['text']

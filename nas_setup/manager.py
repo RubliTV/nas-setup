@@ -86,7 +86,7 @@ def unit_quote(value):
 def container_info(system,identity):
     require(isinstance(identity,str) and bool(CONTAINER.fullmatch(identity)),'container_invalid')
     # Intentionally exclude environment, command and arbitrary labels.
-    fmt='{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"state":{{json .State.Status}},"exit_code":{{json .State.ExitCode}},"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}"none"{{end}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"service":{{json (index .Config.Labels "com.docker.compose.service")}},"owner":{{json (index .Config.Labels "io.nas-manager.owner")}},"ports":{{json .NetworkSettings.Ports}},"mounts":{{json .Mounts}}}'
+    fmt='{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"state":{{json .State.Status}},"exit_code":{{json (index .State "ExitCode")}},"health":{{with index .State "Health"}}{{json (index . "Status")}}{{else}}"none"{{end}},"project":{{with index .Config "Labels"}}{{json (index . "com.docker.compose.project")}}{{else}}null{{end}},"service":{{with index .Config "Labels"}}{{json (index . "com.docker.compose.service")}}{{else}}null{{end}},"owner":{{with index .Config "Labels"}}{{json (index . "io.nas-manager.owner")}}{{else}}null{{end}},"ports":{{with index . "NetworkSettings"}}{{json (index . "Ports")}}{{else}}null{{end}},"mounts":{{json (index . "Mounts")}}}'
     raw=_host_run(system,['docker','inspect','--format',fmt,identity]);require(len(raw)<=65536,'container_too_large')
     return json.loads(raw)
 
@@ -237,7 +237,7 @@ class Manager:
         if record and secrets.compare_digest(str(info.get('owner') or ''),record['owner']):
             config=record['services'].get(info.get('service'))
             if config and config['image']==info['image']:
-                actual={(m['Source'],m['Destination'],m.get('RW',True)) for m in info.get('mounts',[]) if m.get('Type')=='bind'}
+                actual={(m['Source'],m['Destination'],m.get('RW',True)) for m in (info.get('mounts') or []) if m.get('Type')=='bind'}
                 expected={(m['source'],m['target'],not m.get('read_only',False)) for m in config['mounts'] if m['type']=='bind'}
                 if actual==expected:return record
         return None
@@ -613,7 +613,7 @@ class Manager:
         self._inspect(identity)
         # Redact every environment value, not just keys that look secret. Values
         # are captured locally and never enter RPC results or diagnostics.
-        fmt='{"env":{{json .Config.Env}},"cmd":{{json .Config.Cmd}},"entrypoint":{{json .Config.Entrypoint}},"healthcheck":{{json .Config.Healthcheck}}}'
+        fmt='{"env":{{json (index .Config "Env")}},"cmd":{{json (index .Config "Cmd")}},"entrypoint":{{json (index .Config "Entrypoint")}},"healthcheck":{{json (index .Config "Healthcheck")}}}'
         raw=self._run(['docker','inspect','--format',fmt,identity])
         require(len(raw)<=131072,'container_too_large')
         private=json.loads(raw)
