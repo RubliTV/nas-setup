@@ -1,0 +1,282 @@
+{
+  "disposable_vm_only": true,
+  "physical_nas_tested": false,
+  "apps": [
+    {
+      "app": "radarr",
+      "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls323",
+      "port": 7878,
+      "http_status": 200,
+      "uid": 1000,
+      "gid": 100,
+      "config_mode": "0700",
+      "job_status": "succeeded"
+    },
+    {
+      "app": "sonarr",
+      "image": "lscr.io/linuxserver/sonarr:4.0.20.3014-ls1",
+      "port": 8989,
+      "http_status": 200,
+      "uid": 1000,
+      "gid": 100,
+      "config_mode": "0700",
+      "job_status": "succeeded"
+    },
+    {
+      "app": "prowlarr",
+      "image": "lscr.io/linuxserver/prowlarr:2.6.5.5623-ls165",
+      "port": 9696,
+      "http_status": 200,
+      "uid": 1000,
+      "gid": 100,
+      "config_mode": "0700",
+      "job_status": "succeeded"
+    }
+  ],
+  "events": [
+    {
+      "time": "2026-10-25T03:19:53.503570+00:00",
+      "event": "guards_pass",
+      "hostname": "nas-v02-vm",
+      "serials": [
+        "NASV02DATA1",
+        "NASV02DATA2",
+        "NASV02DATA3",
+        "NASV02DATA4",
+        "NASV02SYSTEM"
+      ]
+    },
+    {
+      "time": "2026-10-25T03:19:57.639590+00:00",
+      "event": "live_inventory",
+      "docker": "29.9.2",
+      "volume": "b01dced5-d4ef-4ad0-a245-c67d83fa99a5",
+      "user": "smokeana",
+      "uid": 1000,
+      "gid": 100,
+      "share": "SmokeFiles",
+      "preexisting_containers": 3
+    },
+    {
+      "time": "2026-10-25T03:20:05.500282+00:00",
+      "event": "app_pass",
+      "app": "radarr",
+      "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls323",
+      "port": 7878,
+      "http_status": 200,
+      "uid": 1000,
+      "gid": 100,
+      "config_mode": "0700",
+      "job_status": "succeeded"
+    },
+    {
+      "time": "2026-10-25T03:20:10.080428+00:00",
+      "event": "plan_valid",
+      "app": "sonarr",
+      "image": "lscr.io/linuxserver/sonarr:4.0.20.3014-ls1",
+      "port": 8989
+    },
+    {
+      "time": "2026-10-25T03:20:11.941297+00:00",
+      "event": "job_progress",
+      "id": "0362ced652374837aa6efe7336648306",
+      "operation": "deploy",
+      "target": "nas-manager-sonarr",
+      "phase": "validate",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:20:17.952439+00:00",
+      "event": "job_progress",
+      "id": "0362ced652374837aa6efe7336648306",
+      "operation": "deploy",
+      "target": "nas-manager-sonarr",
+      "phase": "pull",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:20:41.991739+00:00",
+      "event": "job_progress",
+      "id": "0362ced652374837aa6efe7336648306",
+      "operation": "deploy",
+      "target": "nas-manager-sonarr",
+      "phase": "start",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:20:51.005534+00:00",
+      "event": "job_progress",
+      "id": "0362ced652374837aa6efe7336648306",
+      "operation": "deploy",
+      "target": "nas-manager-sonarr",
+      "phase": "succeeded",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:21:49.647977+00:00",
+      "event": "app_pass",
+      "app": "sonarr",
+      "image": "lscr.io/linuxserver/sonarr:4.0.20.3014-ls1",
+      "port": 8989,
+      "http_status": 200,
+      "uid": 1000,
+      "gid": 100,
+      "config_mode": "0700",
+      "job_status": "succeeded"
+    },
+    {
+      "time": "2026-10-25T03:21:55.638459+00:00",
+      "event": "plan_valid",
+      "app": "prowlarr",
+      "image": "lscr.io/linuxserver/prowlarr:2.6.5.5623-ls165",
+      "port": 9696
+    },
+    {
+      "time": "2026-10-25T03:21:57.202165+00:00",
+      "event": "job_progress",
+      "id": "c6a685d5f3124c788a71de6eaab20271",
+      "operation": "deploy",
+      "target": "nas-manager-prowlarr",
+      "phase": "validate",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:22:03.245576+00:00",
+      "event": "job_progress",
+      "id": "c6a685d5f3124c788a71de6eaab20271",
+      "operation": "deploy",
+      "target": "nas-manager-prowlarr",
+      "phase": "pull",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:22:27.328808+00:00",
+      "event": "job_progress",
+      "id": "c6a685d5f3124c788a71de6eaab20271",
+      "operation": "deploy",
+      "target": "nas-manager-prowlarr",
+      "phase": "start",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:22:33.337767+00:00",
+      "event": "job_progress",
+      "id": "c6a685d5f3124c788a71de6eaab20271",
+      "operation": "deploy",
+      "target": "nas-manager-prowlarr",
+      "phase": "succeeded",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:08.622232+00:00",
+      "event": "app_pass",
+      "app": "prowlarr",
+      "image": "lscr.io/linuxserver/prowlarr:2.6.5.5623-ls165",
+      "port": 9696,
+      "http_status": 200,
+      "uid": 1000,
+      "gid": 100,
+      "config_mode": "0700",
+      "job_status": "succeeded"
+    },
+    {
+      "time": "2026-10-25T03:23:16.506187+00:00",
+      "event": "job_progress",
+      "id": "e671a843df5846c980c84b3dd63bc09f",
+      "operation": "stop",
+      "target": "73812fc73d81f28d0a5cda8ec79f620a5feb6b4eec94265a41e03562f16866b7",
+      "phase": "apply",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:28.542628+00:00",
+      "event": "job_progress",
+      "id": "e671a843df5846c980c84b3dd63bc09f",
+      "operation": "stop",
+      "target": "73812fc73d81f28d0a5cda8ec79f620a5feb6b4eec94265a41e03562f16866b7",
+      "phase": "succeeded",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:28.767097+00:00",
+      "event": "external_action_pass",
+      "action": "stop",
+      "state": "exited"
+    },
+    {
+      "time": "2026-10-25T03:23:29.245249+00:00",
+      "event": "job_progress",
+      "id": "c65270601bc7477ea684e01482e8931c",
+      "operation": "start",
+      "target": "73812fc73d81f28d0a5cda8ec79f620a5feb6b4eec94265a41e03562f16866b7",
+      "phase": "apply",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:32.258011+00:00",
+      "event": "job_progress",
+      "id": "c65270601bc7477ea684e01482e8931c",
+      "operation": "start",
+      "target": "73812fc73d81f28d0a5cda8ec79f620a5feb6b4eec94265a41e03562f16866b7",
+      "phase": "succeeded",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:32.432746+00:00",
+      "event": "external_action_pass",
+      "action": "start",
+      "state": "running"
+    },
+    {
+      "time": "2026-10-25T03:23:32.896612+00:00",
+      "event": "job_progress",
+      "id": "c31882f234a0477e9f68c690d432eba0",
+      "operation": "restart",
+      "target": "73812fc73d81f28d0a5cda8ec79f620a5feb6b4eec94265a41e03562f16866b7",
+      "phase": "apply",
+      "status": "running",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:44.944365+00:00",
+      "event": "job_progress",
+      "id": "c31882f234a0477e9f68c690d432eba0",
+      "operation": "restart",
+      "target": "73812fc73d81f28d0a5cda8ec79f620a5feb6b4eec94265a41e03562f16866b7",
+      "phase": "succeeded",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "time": "2026-10-25T03:23:45.217860+00:00",
+      "event": "external_action_pass",
+      "action": "restart",
+      "state": "running"
+    },
+    {
+      "time": "2026-10-25T03:23:46.041755+00:00",
+      "event": "external_logs_pass",
+      "bytes": 66
+    },
+    {
+      "time": "2026-10-25T03:23:46.542105+00:00",
+      "event": "external_update_rejected"
+    },
+    {
+      "time": "2026-10-25T03:23:46.705721+00:00",
+      "event": "existing_config_share_and_containers_preserved"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:56:44.820077+00:00"}
+{"action": "stop", "app": "prowlarr", "event": "reboot_manager_action_pass", "time": "2026-10-25T03:57:02.981666+00:00"}
+{"app": "radarr", "event": "reboot_app_ready", "http_status": 200, "time": "2026-10-25T03:57:05.312574+00:00", "unit_active": true, "unit_enabled": true}
+{"app": "sonarr", "event": "reboot_app_ready", "http_status": 200, "time": "2026-10-25T03:57:05.883662+00:00", "unit_active": true, "unit_enabled": true}
+{"boot_id": "61fc27d6-61e3-42d1-ac59-6de484bdcf0f", "event": "REBOOT_PRECONDITIONS_PASS", "prowlarr_disabled": true, "time": "2026-10-25T03:57:07.324679+00:00"}
+{"event": "guards_pass", "hostname": "nas-v02-vm", "serials": ["NASV02DATA1", "NASV02DATA2", "NASV02DATA3", "NASV02DATA4", "NASV02SYSTEM"], "time": "2026-10-25T03:59:02.648452+00:00"}
+{"app": "prowlarr", "container_state": "exited", "event": "explicit_stop_survived_reboot", "time": "2026-10-25T03:59:10.694027+00:00", "unit_disabled": true}
+{"app": "radarr", "event": "reboot_app_ready", "http_status": 200, "time": "2026-10-25T04:00:36.880359+00:00", "unit_active": true, "unit_enabled": true}
+{"app": "sonarr", "event": "reboot_app_ready", "http_status": 200, "time": "2026-10-25T04:00:46.992020+00:00", "unit_active": true, "unit_enabled": true}
+{"action": "start", "app": "prowlarr", "event": "reboot_manager_action_pass", "time": "2026-10-25T04:01:26.866020+00:00"}
+{"app": "prowlarr", "event": "reboot_app_ready", "http_status": 200, "time": "2026-10-25T04:01:57.512235+00:00", "unit_active": true, "unit_enabled": true}
+{"boot_id": "e146236b-88e9-4398-9f38-f2fbf61dd81b", "event": "MANAGER_REBOOT_SMOKE_PASS", "prior_boot_id": "61fc27d6-61e3-42d1-ac59-6de484bdcf0f", "prior_immich_preserved": true, "time": "2026-10-25T04:02:00.216955+00:00"}

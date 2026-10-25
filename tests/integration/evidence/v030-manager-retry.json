@@ -1,0 +1,11 @@
+{
+  "disposable_vm_only": true,
+  "injected_failure_boundary": "docker compose pull",
+  "original_status": "failed",
+  "original_error": "manager_command_failed",
+  "retry_status": "succeeded",
+  "new_job_id": true,
+  "original_history_preserved": true,
+  "actual_container_state": "running",
+  "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls323"
+}
