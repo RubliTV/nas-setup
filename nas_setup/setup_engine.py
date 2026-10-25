@@ -175,6 +175,7 @@ class WizardEngine:
 
     def start(self,body,session):
         with self.engine.lock:
+            if self.engine.manager.busy():raise SetupError('manager_busy')
             if body.pending_id is not None:raise SetupError('request_invalid')
             plan=self._confirmed(body,session)
             if self.plans[body.plan_id].get('recovery_job'):raise SetupError('recovery_resume_only')
@@ -203,6 +204,7 @@ class WizardEngine:
 
     def resume(self,body,session):
         with self.engine.lock:
+            if self.engine.manager.busy():raise SetupError('manager_busy')
             job=self.engine.store.get()
             if not job or not job.get('setup'):raise SetupError('job_missing')
             if job['status'] not in {'failed','interrupted','paused','waiting-for-user','waiting-for-sync'}:

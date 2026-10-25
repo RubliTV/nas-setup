@@ -39,23 +39,24 @@ def check_jobs(connection):
 
 @contextmanager
 def job_database(state, *, lock=False):
-    database = state / 'worker/jobs.sqlite'
-    connection = None
+    # Lock wizard first: every manager mutation checks the wizard under the same
+    # ordering before creating its job. Keep both DBs locked while services stop.
+    databases=[state/'worker/jobs.sqlite']
+    if (state/'worker/manager.sqlite').exists():databases.append(state/'worker/manager.sqlite')
+    connections=[]
     try:
-        # Never create a missing DB or run JobStore/Engine initialization, which
-        # would modify stale running records. The write reservation below makes
-        # queued start/resume requests wait; no SQL writes are performed here.
-        connection = sqlite3.connect(database.resolve().as_uri() + ('?mode=rw' if lock else '?mode=ro'), uri=True, timeout=10)
-        if lock:
-            connection.execute('BEGIN IMMEDIATE')
-        check_jobs(connection)
-        yield connection
+        for database in databases:
+            if database.is_symlink():raise UpdateError('Unsafe job database; no update performed.')
+            connection=sqlite3.connect(database.resolve().as_uri()+('?mode=rw' if lock else '?mode=ro'),uri=True,timeout=10)
+            connections.append(connection)
+            if lock:connection.execute('BEGIN IMMEDIATE')
+            check_jobs(connection)
+        yield connections[0]
     except sqlite3.Error as exc:
         raise UpdateError('Cannot safely inspect/lock the job database. Start NAS Setup once if its database is missing; no jobs were changed.') from exc
     finally:
-        if connection is not None:
-            connection.rollback()
-            connection.close()
+        for connection in reversed(connections):
+            connection.rollback();connection.close()
 
 
 def wait_ready(conf, timeout=30):
@@ -80,8 +81,8 @@ def update_release(source, *, destination=Path('/opt/nas-setup'), state=Path('/v
     if not destination.is_dir():
         raise UpdateError('NAS Setup is not installed. Run the installer without --update.')
     installed_version = version(destination / 'source')
-    if installed_version not in {'0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4'} or version(source) != '0.2.4':
-        raise UpdateError('Unsupported update version: only 0.2.0/0.2.1/0.2.2/0.2.3/0.2.4 to 0.2.4 is supported.')
+    if installed_version not in {'0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.3.0'} or version(source) != '0.3.0':
+        raise UpdateError('Unsupported update version: only 0.2.0/0.2.1/0.2.2/0.2.3/0.2.4/0.3.0 to 0.3.0 is supported.')
     with job_database(state):
         pass
     # Initial eligibility checks above precede even creation of the update lock.
@@ -116,7 +117,7 @@ def _replace_runtime(source, destination, state, installed_version, run, probe):
     try:
         # The versioned directory is permanent: pip console-script shebangs
         # continue pointing at this exact venv after the stable symlink switches.
-        staged = Path(tempfile.mkdtemp(prefix='nas-setup-runtime-0.2.4-', dir=destination.parent))
+        staged = Path(tempfile.mkdtemp(prefix='nas-setup-runtime-0.3.0-', dir=destination.parent))
         staged.chmod(0o755)
         shutil.copytree(source, staged / 'source')
         for path in (staged / 'source').rglob('*'):
@@ -125,7 +126,7 @@ def _replace_runtime(source, destination, state, installed_version, run, probe):
         python = str(staged / 'venv/bin/python')
         run(python, '-m', 'pip', 'install', '-r', str(staged / 'source/requirements.lock'))
         run(python, '-m', 'pip', 'install', '--no-deps', str(staged / 'source'))
-        run(python, '-c', 'from importlib.metadata import version; import nas_setup.cli, nas_setup.worker; assert version("nas-setup") == "0.2.4"')
+        run(python, '-c', 'from importlib.metadata import version; import nas_setup.cli, nas_setup.worker; assert version("nas-setup") == "0.3.0"')
         # Reject jobs that began during dependency installation before downtime.
         with job_database(state):
             pass

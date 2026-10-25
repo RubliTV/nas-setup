@@ -16,15 +16,19 @@ class Engine:
             from .omv import OmvProvisioner
             provisioner=OmvProvisioner(system)
         self.wizard=WizardEngine(self,provisioner)
+        from .manager import Manager
+        self.manager=Manager(self)
 
     def call(self,operation,payload=None):
         payload=payload or {}
+        if operation.startswith('manager_'):return self.manager.call(operation[8:],payload)
         if operation.startswith('setup_'):return self.wizard.call(operation[6:],payload)
         if operation in ('plan','start'):
             selection=Selection(**payload)
             plan=make_plan(selection,self.system.inventory())
             if operation=='plan':return plan
             with self.lock:
+                if self.manager.busy():raise SetupError('manager_busy')
                 job=self.store.create(selection.model_dump(),plan['steps'])
                 self._launch(job)
             return job
@@ -39,6 +43,7 @@ class Engine:
                 return self.store.update(job['id'],pause_requested=True)
         if operation=='resume':
             with self.lock:
+                if self.manager.busy():raise SetupError('manager_busy')
                 job=self.store.get()
                 if not job or job['status'] not in ('failed','interrupted','paused','waiting-for-user'):raise SetupError('job_active')
                 if job.get('setup'):raise SetupError('confirmation_required')
@@ -48,7 +53,7 @@ class Engine:
         if operation=='finish':
             job=self.wizard.refresh(self.store.get())
             if not job or job['status']!='succeeded':raise SetupError('job_active')
-            self.system.finish();return {'status':'finished'}
+            return {'status':'finished','destination':'manager'}
         raise SetupError('operation_invalid')
 
     def _launch(self,job):

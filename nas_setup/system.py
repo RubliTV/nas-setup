@@ -101,7 +101,6 @@ class DemoSystem:
         report('checking_services')
         time.sleep(self.delay)
         return {'waiting':False,'links':{a:{'port':{'immich':2283,'jellyfin':8096}.get(a),'ready':True,'demo':True} for a in selection.apps}}
-    def finish(self):pass
 
 class System:
     demo=False
@@ -431,8 +430,3 @@ WantedBy=multi-user.target
             status=self.tailscale_status();waiting=status['state']!='Running'
             links['tailscale']={'ready':not waiting,'ips':status['ips']}
         return {'links':links,'waiting':waiting}
-
-    def finish(self):
-        import threading
-        def disable():self.run(['systemctl','disable','--now','nas-setup-web.service','nas-setup-worker.service'],timeout=30,check=False)
-        threading.Timer(2,disable).start()

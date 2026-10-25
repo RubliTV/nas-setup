@@ -6,6 +6,8 @@ from .models import SetupError
 MAX_MESSAGE=262144
 OPERATIONS={'inventory','plan','start','job','resume','pause','tailscale','finish','setup_plan','setup_start','setup_resume','setup_recovery'}
 
+OPERATIONS.update('manager_'+name for name in ('catalog','overview','options','plan','deploy','job','action','logs','retry','prepare_docker'))
+
 class WorkerClient:
     def __init__(self,path):self.path=str(path)
     def call(self,operation,payload=None):

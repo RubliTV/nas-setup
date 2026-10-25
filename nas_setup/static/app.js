@@ -165,7 +165,9 @@ async function poll(force=false){
  }catch(e){if(epoch===jobEpoch){connectionFailed=true;renderActivity();error(e.message);}}
  finally{polling=false;}
 }
-async function entered(){
+async function entered(forceSetup=false){
+ if(NasManager.isConfigured()&&!forceSetup&&!demo){job=await api('job');if(job?.status==='succeeded'){await NasManager.open();return;}}
+ NasManager.nav();
  inventory=await api('inventory');if(!draft.shares.length&&!localStorage.getItem('nas-setup-draft'))draft.shares=['files','media','backups'].map(folder=>({name:t('folder_'+folder),folder,permissions:{'':'rw'},enabled:true}));
  if(inventory.provisioning_enabled===false)draft.storage={mode:'existing',disks:[],volume:draft.storage.volume};renderInventory();renderUsers();renderShares();updateSelection();const savedScreen=screen;await poll(true);if(!job)show(['storage','shares','apps'].includes(savedScreen)?savedScreen:'storage');
 }
@@ -179,16 +181,16 @@ async function resume(approvePending=false){
  renderJob();
 }
 async function init(){
- dictionaries=await fetch('/static/i18n.json').then(r=>r.json());if(!dictionaries[lang])lang='pt-BR';applyLanguage();const session=await api('session');demo=session.demo;$('demo-banner').hidden=!demo;$('demo-login').hidden=!demo;if(session.authenticated){csrf=session.csrf;await entered();}
- $('lang-pt').onclick=()=>{lang='pt-BR';applyLanguage();};$('lang-en').onclick=()=>{lang='en';applyLanguage();};
- $('login-form').onsubmit=e=>{e.preventDefault();action(e.submitter,async()=>{const result=await api('login','POST',{code:$('access-code').value.trim()});csrf=result.csrf;$('access-code').value='';await entered();});};$('demo-login').onclick=e=>action(e.currentTarget,async()=>{const result=await api('demo-login','POST');csrf=result.csrf;await entered();});
+ dictionaries=await fetch('/static/i18n.json').then(r=>r.json());if(!dictionaries[lang])lang='pt-BR';applyLanguage();NasManager.language();const session=await api('session');demo=session.demo;$('demo-banner').hidden=!demo;$('demo-login').hidden=!demo;NasManager.session(session);if(session.authenticated){csrf=session.csrf;if(!session.manager_configured&&!demo)NasManager.enroll();else await entered();}
+ $('lang-pt').onclick=()=>{lang='pt-BR';applyLanguage();NasManager.language();};$('lang-en').onclick=()=>{lang='en';applyLanguage();NasManager.language();};
+ $('login-form').onsubmit=e=>{e.preventDefault();action(e.submitter,async()=>{const result=await api('login','POST',{code:$('access-code').value.trim()});csrf=result.csrf;$('access-code').value='';await NasManager.afterPair();});};$('demo-login').onclick=e=>action(e.currentTarget,async()=>{const result=await api('demo-login','POST');csrf=result.csrf;await entered();});
  $('storage-mode').onchange=()=>{draft.storage.mode=$('storage-mode').value;invalidate();renderInventory();updateSelection();};$('volume').onchange=()=>{draft.storage.volume=$('volume').value||null;invalidate();updateSelection();};
  $('storage-next').onclick=()=>{if(validStorage())show('shares');};$('shares-next').onclick=e=>action(e.currentTarget,async()=>{validateUsers();show('apps');});
  $('add-user').onclick=()=>{draft.users.push({name:''});passwords.push({});invalidate();renderUsers();renderShares();};$('add-share').onclick=()=>{draft.shares.push({name:t('newShare'),folder:'custom',permissions:{},enabled:true});invalidate();renderShares();};
  for(const c of document.querySelectorAll('.app-card input'))c.onchange=()=>{draft.apps=[...document.querySelectorAll('.app-card input:checked')].map(i=>i.value);invalidate();updateSelection();};$('timezone').oninput=()=>{draft.timezone=$('timezone').value;invalidate();};$('machine-learning').onchange=()=>{draft.machine_learning=$('machine-learning').checked;invalidate();};
  $('apps-next').onclick=e=>action(e.currentTarget,review);for(const b of document.querySelectorAll('.back'))b.onclick=()=>{invalidate();show(b.dataset.target);};$('erase-confirmation').oninput=updateSelection;
  $('install').onclick=e=>action(e.currentTarget,async()=>{const creds=Object.fromEntries(draft.users.map((u,i)=>[u.name.trim(),passwords[i]?.password||'']));job=await api('setup/start','POST',{plan_id:plan.plan_id,confirmation:$('erase-confirmation').value,erase_disks:[...document.querySelectorAll('.erase-check:checked')].map(c=>c.value),passwords:creds});passwords=[];document.querySelectorAll('input[data-credential],input[type=password]').forEach(i=>{i.value='';i.type='password';if(i.dataset.credential)passwordToggleLabel(i.parentElement.querySelector('.password-toggle'),i);});localStorage.removeItem('nas-setup-draft');show('progress');renderJob();});
- $('pause').onclick=e=>action(e.currentTarget,async()=>{job=await api('pause','POST');renderJob();});$('resume').onclick=e=>action(e.currentTarget,resume);$('apply-pending').onclick=e=>action(e.currentTarget,()=>resume(true));$('check-tailscale').onclick=e=>action(e.currentTarget,resume);$('finish').onclick=e=>action(e.currentTarget,async()=>{await api('finish','POST');show('finished');});
+ $('pause').onclick=e=>action(e.currentTarget,async()=>{job=await api('pause','POST');renderJob();});$('resume').onclick=e=>action(e.currentTarget,resume);$('apply-pending').onclick=e=>action(e.currentTarget,()=>resume(true));$('check-tailscale').onclick=e=>action(e.currentTarget,resume);$('finish').onclick=e=>action(e.currentTarget,async()=>{await api('finish','POST');await NasManager.open();});
  setInterval(()=>{if(csrf&&screen==='progress')poll();},1500);
  setInterval(()=>{if(screen==='progress')renderActivity();},1000);
 }

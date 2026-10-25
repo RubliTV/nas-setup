@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NAS Setup</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NAS Manager</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/manager.css"><script src="/static/manager.js" defer></script><script src="/static/app.js" defer></script></head>
 <body>
 <aside class="sidebar">
  <a class="brand" href="/"><span class="brand-symbol">▤</span> NAS<span>setup</span></a>
  <div class="sidebar-caption" data-i18n="sidebarCaption"></div>
+ <nav id="manager-nav" aria-label="NAS manager" hidden></nav>
  <nav aria-label="Setup steps"><ol id="navigation">
   <li data-step="storage"><span>01</span><div data-i18n="navStorage"></div></li>
   <li data-step="shares"><span>02</span><div data-i18n="navShares"></div></li>
@@ -12,7 +13,7 @@
   <li data-step="review"><span>04</span><div data-i18n="navReview"></div></li>
   <li data-step="progress"><span>05</span><div data-i18n="navInstall"></div></li>
  </ol></nav>
- <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.2.4</span></div>
+ <div class="sidebar-bottom"><span class="small-dot"></span><span data-i18n="localOnly"></span><p data-i18n="localDescription"></p><span class="version">OPENMEDIAVAULT · v0.3.0</span></div>
 </aside>
 <div class="workspace">
  <header><div class="breadcrumb">NAS Setup <span>/</span> <span data-i18n="setup"></span></div><div class="languages" aria-label="Language"><button id="lang-pt" type="button">Português</button><button id="lang-en" type="button">English</button></div></header>
@@ -21,8 +22,11 @@
   <div id="error" class="error" role="alert" hidden></div>
   <section id="screen-login" class="screen">
    <div class="eyebrow" data-i18n="welcomeEyebrow"></div><h1 data-i18n="loginTitle"></h1><p class="lead" data-i18n="loginDescription"></p>
+   <div id="manager-login" hidden></div>
    <form id="login-form" class="panel login-panel"><div class="panel-icon">⌁</div><h2 data-i18n="pairTitle"></h2><label for="access-code" data-i18n="codeLabel"></label><input id="access-code" type="password" autocomplete="one-time-code" required maxlength="256"><p class="hint" data-i18n="codeHint"></p><button class="primary" type="submit" data-i18n="connect"></button><button class="secondary" id="demo-login" type="button" data-i18n="demoLogin" hidden></button></form>
   </section>
+  <section id="screen-manager" class="screen" hidden><div id="manager-content"></div></section>
+  <section id="screen-enroll" class="screen" hidden><div id="manager-enroll"></div></section>
   <section id="screen-apps" class="screen" hidden>
    <div class="eyebrow" data-i18n="appsEyebrow"></div><h1 data-i18n="appsTitle"></h1><p class="lead" data-i18n="appsDescription"></p>
    <div class="section-label"><h2 data-i18n="appsSection"></h2><span data-i18n="optional"></span></div>
@@ -69,7 +73,7 @@
    <div class="actions"><span class="muted" data-i18n="closeBrowser"></span><div class="action-buttons"><button id="pause" class="secondary" data-i18n="pause"></button><button id="resume" class="primary" data-i18n="resume" hidden></button><button id="finish" class="primary" data-i18n="finish" hidden></button></div></div>
   </section>
   <section id="screen-finished" class="screen" hidden><div class="eyebrow" data-i18n="finishedEyebrow"></div><h1 data-i18n="finishedTitle"></h1><p class="lead" data-i18n="finishedDescription"></p><div class="panel"><code>sudo nas-setup reopen</code></div></section>
-  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.2.4</span></footer>
+  <footer><span data-i18n="footer"></span><span>NAS Setup <span class="footer-dot">·</span> 0.3.0</span></footer>
  </main>
 </div>
 </body></html>
